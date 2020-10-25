@@ -9,7 +9,7 @@ This file contains the generated interface and documentation.
 You can get this interface by ⌃⌘-clicking on `Combine` in the `import Combine`
 statement in any Swift file opened in an Xcode project.
 
-### `combine-generated-interface.swift`
+### `combine.swiftinterface`
 
 This file contains the generated interface without documentaion, but with bodies
 of `@inlinable` functions.
