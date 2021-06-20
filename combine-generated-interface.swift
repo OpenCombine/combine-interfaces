@@ -16,6 +16,12 @@ final public class AnyCancellable : Cancellable, Hashable {
     public init<C>(_ canceller: C) where C : Cancellable
 
     /// Cancel the activity.
+    ///
+    /// When implementing ``Cancellable`` in support of a custom publisher, implement `cancel()` to request that your publisher stop calling its downstream subscribers. Combine doesn't require that the publisher stop immediately, but the `cancel()` call should take effect quickly. Canceling should also eliminate any strong references it currently holds.
+    ///
+    /// After you receive one call to `cancel()`, subsequent calls shouldn't do anything. Additionally, your implementation must be thread-safe, and it shouldn't block the caller.
+    ///
+    /// > Tip: Keep in mind that your `cancel()` may execute concurrently with another call to `cancel()` --- including the scenario where an ``AnyCancellable`` is deallocating --- or to ``Subscription/request(_:)``.
     final public func cancel()
 
     /// Hashes the essential components of this value by feeding them into the
@@ -33,14 +39,11 @@ final public class AnyCancellable : Cancellable, Hashable {
     ///   of this instance.
     final public func hash(into hasher: inout Hasher)
 
-    /// Returns a Boolean value indicating whether two values are equal.
-    ///
-    /// Equality is the inverse of inequality. For any values `a` and `b`,
-    /// `a == b` implies that `a != b` is `false`.
-    ///
+    /// Returns a Boolean value that indicates whether two instances are equal, as determined by comparing whether their references point to the same instance.
     /// - Parameters:
-    ///   - lhs: A value to compare.
-    ///   - rhs: Another value to compare.
+    ///   - lhs: An `AnyCancellable` instance to compare.
+    ///   - rhs: Another `AnyCancellable` instance to compare.
+    /// - Returns: A Boolean value that indicates whether two instances are equal, as determined by comparing whether their references point to the same instance.
     public static func == (lhs: AnyCancellable, rhs: AnyCancellable) -> Bool
 
     /// The hash value.
@@ -207,6 +210,12 @@ extension AnyPublisher : Publisher {
 public protocol Cancellable {
 
     /// Cancel the activity.
+    ///
+    /// When implementing ``Cancellable`` in support of a custom publisher, implement `cancel()` to request that your publisher stop calling its downstream subscribers. Combine doesn't require that the publisher stop immediately, but the `cancel()` call should take effect quickly. Canceling should also eliminate any strong references it currently holds.
+    ///
+    /// After you receive one call to `cancel()`, subsequent calls shouldn't do anything. Additionally, your implementation must be thread-safe, and it shouldn't block the caller.
+    ///
+    /// > Tip: Keep in mind that your `cancel()` may execute concurrently with another call to `cancel()` --- including the scenario where an ``AnyCancellable`` is deallocating --- or to ``Subscription/request(_:)``.
     func cancel()
 }
 
@@ -242,15 +251,6 @@ public struct CombineIdentifier : Hashable, CustomStringConvertible {
     /// A textual representation of this instance.
     public var description: String { get }
 
-    /// The hash value.
-    ///
-    /// Hash values are not guaranteed to be equal across different executions of
-    /// your program. Do not save hash values to use during a future execution.
-    ///
-    /// - Important: `hashValue` is deprecated as a `Hashable` requirement. To
-    ///   conform to `Hashable`, implement the `hash(into:)` requirement instead.
-    public var hashValue: Int { get }
-
     /// Hashes the essential components of this value by feeding them into the
     /// given hasher.
     ///
@@ -275,6 +275,15 @@ public struct CombineIdentifier : Hashable, CustomStringConvertible {
     ///   - lhs: A value to compare.
     ///   - rhs: Another value to compare.
     public static func == (a: CombineIdentifier, b: CombineIdentifier) -> Bool
+
+    /// The hash value.
+    ///
+    /// Hash values are not guaranteed to be equal across different executions of
+    /// your program. Do not save hash values to use during a future execution.
+    ///
+    /// - Important: `hashValue` is deprecated as a `Hashable` requirement. To
+    ///   conform to `Hashable`, implement the `hash(into:)` requirement instead.
+    public var hashValue: Int { get }
 }
 
 /// A publisher that provides an explicit means of connecting and canceling publication.
@@ -441,14 +450,11 @@ public struct Empty<Output, Failure> : Publisher, Equatable where Failure : Erro
     /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
     public func receive<S>(subscriber: S) where Output == S.Input, Failure == S.Failure, S : Subscriber
 
-    /// Returns a Boolean value indicating whether two values are equal.
-    ///
-    /// Equality is the inverse of inequality. For any values `a` and `b`,
-    /// `a == b` implies that `a != b` is `false`.
-    ///
+    /// Returns a Boolean value that indicates whether two publishers are equivalent.
     /// - Parameters:
-    ///   - lhs: A value to compare.
-    ///   - rhs: Another value to compare.
+    ///   - lhs: An `Empty` instance to compare.
+    ///   - rhs: Another `Empty` instance to compare.
+    /// - Returns: `true` if the two publishers have equal `completeImmediately` properties; otherwise `false`.
     public static func == (lhs: Empty<Output, Failure>, rhs: Empty<Output, Failure>) -> Bool
 }
 
@@ -486,14 +492,11 @@ public struct Fail<Output, Failure> : Publisher where Failure : Error {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Fail : Equatable where Failure : Equatable {
 
-    /// Returns a Boolean value indicating whether two values are equal.
-    ///
-    /// Equality is the inverse of inequality. For any values `a` and `b`,
-    /// `a == b` implies that `a != b` is `false`.
-    ///
+    /// Returns a Boolean value that indicates whether two publishers are equivalent.
     /// - Parameters:
-    ///   - lhs: A value to compare.
-    ///   - rhs: Another value to compare.
+    ///   - lhs: A `Fail` publisher to compare for equality.
+    ///   - rhs: Another `Fail` publisher to compare for equality.
+    /// - Returns: `true` if the publishers have equal `error` properties; otherwise `false`.
     public static func == (lhs: Fail<Output, Failure>, rhs: Fail<Output, Failure>) -> Bool
 }
 
@@ -687,13 +690,15 @@ public struct ImmediateScheduler : Scheduler {
             /// Converts the specified number of nanoseconds into an instance of this scheduler time type.
             public static func nanoseconds(_ ns: Int) -> ImmediateScheduler.SchedulerTimeType.Stride
 
-            /// Creates a new instance by decoding from the given decoder.
+            /// Returns a Boolean value indicating whether two values are equal.
             ///
-            /// This initializer throws an error if reading from the decoder fails, or
-            /// if the data read is corrupted or otherwise invalid.
+            /// Equality is the inverse of inequality. For any values `a` and `b`,
+            /// `a == b` implies that `a != b` is `false`.
             ///
-            /// - Parameter decoder: The decoder to read data from.
-            public init(from decoder: Decoder) throws
+            /// - Parameters:
+            ///   - lhs: A value to compare.
+            ///   - rhs: Another value to compare.
+            public static func == (a: ImmediateScheduler.SchedulerTimeType.Stride, b: ImmediateScheduler.SchedulerTimeType.Stride) -> Bool
 
             /// Encodes this value into the given encoder.
             ///
@@ -706,15 +711,13 @@ public struct ImmediateScheduler : Scheduler {
             /// - Parameter encoder: The encoder to write data to.
             public func encode(to encoder: Encoder) throws
 
-            /// Returns a Boolean value indicating whether two values are equal.
+            /// Creates a new instance by decoding from the given decoder.
             ///
-            /// Equality is the inverse of inequality. For any values `a` and `b`,
-            /// `a == b` implies that `a != b` is `false`.
+            /// This initializer throws an error if reading from the decoder fails, or
+            /// if the data read is corrupted or otherwise invalid.
             ///
-            /// - Parameters:
-            ///   - lhs: A value to compare.
-            ///   - rhs: Another value to compare.
-            public static func == (a: ImmediateScheduler.SchedulerTimeType.Stride, b: ImmediateScheduler.SchedulerTimeType.Stride) -> Bool
+            /// - Parameter decoder: The decoder to read data from.
+            public init(from decoder: Decoder) throws
         }
     }
 
@@ -780,14 +783,11 @@ public struct Just<Output> : Publisher {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Just : Equatable where Output : Equatable {
 
-    /// Returns a Boolean value indicating whether two values are equal.
-    ///
-    /// Equality is the inverse of inequality. For any values `a` and `b`,
-    /// `a == b` implies that `a != b` is `false`.
-    ///
+    /// Returns a Boolean value that indicates whether two publishers are equivalent.
     /// - Parameters:
-    ///   - lhs: A value to compare.
-    ///   - rhs: Another value to compare.
+    ///   - lhs: A `Just` publisher to compare for equality.
+    ///   - rhs: Another `Just` publisher to compare for equality.
+    /// - Returns: `true` if the publishers have equal `output` properties; otherwise `false`.
     public static func == (lhs: Just<Output>, rhs: Just<Output>) -> Bool
 }
 
@@ -955,6 +955,7 @@ final public class ObservableObjectPublisher : Publisher {
     /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
     final public func receive<S>(subscriber: S) where S : Subscriber, S.Failure == ObservableObjectPublisher.Failure, S.Input == ObservableObjectPublisher.Output
 
+    /// Sends the changed value to the downstream subscriber.
     final public func send()
 }
 
@@ -1691,7 +1692,9 @@ extension Publisher {
     ///
     /// Use ``Publisher/combineLatest(_:)`` when you want the downstream subscriber to receive a tuple of the most-recent element from multiple publishers when any of them emit a value. To pair elements from multiple publishers, use ``Publisher/zip(_:)`` instead. To receive just the most-recent element from multiple publishers rather than tuples, use ``Publisher/merge(with:)-7qt71``.
     ///
-    /// The combined publisher passes through any requests to **all** upstream publishers. However, it still obeys the demand-fulfilling rule of only sending the request amount downstream. If the demand isn’t ``Subscribers/Demand/unlimited``, it drops values from upstream publishers. It implements this by using a buffer size of 1 for each upstream, and holds the most-recent value in each buffer.
+    /// > Tip: The combined publisher doesn't produce elements until each of its upstream publishers publishes at least one element.
+    ///
+    /// The combined publisher passes through any requests to *all* upstream publishers. However, it still obeys the demand-fulfilling rule of only sending the request amount downstream. If the demand isn’t ``Subscribers/Demand/unlimited``, it drops values from upstream publishers. It implements this by using a buffer size of 1 for each upstream, and holds the most-recent value in each buffer.
     ///
     /// In this example, ``PassthroughSubject`` `pub1` and also `pub2` emit values; as ``Publisher/combineLatest(_:)`` receives input from either upstream publisher, it combines the latest value from each publisher into a tuple and publishes it.
     ///
@@ -1702,6 +1705,7 @@ extension Publisher {
     ///         .combineLatest(pub2)
     ///         .sink { print("Result: \($0).") }
     ///
+    ///     pub1.send(1)
     ///     pub1.send(2)
     ///     pub2.send(2)
     ///     pub1.send(3)
@@ -1724,6 +1728,8 @@ extension Publisher {
     ///
     /// Use `combineLatest<P,T>(_:)` to combine the current and one additional publisher and transform them using a closure you specify to publish a new value to the downstream.
     ///
+    /// > Tip: The combined publisher doesn't produce elements until each of its upstream publishers publishes at least one element.
+    ///
     /// The combined publisher passes through any requests to *all* upstream publishers. However, it still obeys the demand-fulfilling rule of only sending the request amount downstream. If the demand isn’t `.unlimited`, it drops values from upstream publishers. It implements this by using a buffer size of 1 for each upstream, and holds the most-recent value in each buffer.
     ///
     /// In the example below, `combineLatest()` receives the most-recent values published by the two publishers, it multiplies them together, and republishes the result:
@@ -1736,6 +1742,7 @@ extension Publisher {
     ///         }
     ///         .sink { print("Result: \($0).") }
     ///
+    ///     pub1.send(1)
     ///     pub1.send(2)
     ///     pub2.send(2)
     ///     pub1.send(9)
@@ -1763,7 +1770,9 @@ extension Publisher {
     ///
     /// Use ``Publisher/combineLatest(_:_:)-5crqg`` when you want the downstream subscriber to receive a tuple of the most-recent element from multiple publishers when any of them emit a value. To combine elements from multiple publishers, use ``Publisher/zip(_:_:)-8d7k7`` instead. To receive just the most-recent element from multiple publishers rather than tuples, use ``Publisher/merge(with:_:)``.
     ///
-    /// The combined publisher passes through any requests to **all** upstream publishers. However, it still obeys the demand-fulfilling rule of only sending the request amount downstream. If the demand isn’t ``Subscribers/Demand/unlimited``, it drops values from upstream publishers. It implements this by using a buffer size of 1 for each upstream, and holds the most-recent value in each buffer.
+    /// > Tip: The combined publisher doesn't produce elements until each of its upstream publishers publishes at least one element.
+    ///
+    /// The combined publisher passes through any requests to *all* upstream publishers. However, it still obeys the demand-fulfilling rule of only sending the request amount downstream. If the demand isn’t ``Subscribers/Demand/unlimited``, it drops values from upstream publishers. It implements this by using a buffer size of 1 for each upstream, and holds the most-recent value in each buffer.
     ///
     /// All upstream publishers need to finish for this publisher to finish. If an upstream publisher never publishes a value, this publisher never finishes.
     ///
@@ -1777,6 +1786,7 @@ extension Publisher {
     ///         .combineLatest(pub2, pub3)
     ///         .sink { print("Result: \($0).") }
     ///
+    ///     pub.send(1)
     ///     pub.send(2)
     ///     pub2.send(2)
     ///     pub3.send(9)
@@ -1804,6 +1814,8 @@ extension Publisher {
     ///
     /// Use `combineLatest<P, Q>(_:,_:)` to combine the current and two additional publishers and transform them using a closure you specify to publish a new value to the downstream.
     ///
+    /// > Tip: The combined publisher doesn't produce elements until each of its upstream publishers publishes at least one element.
+    ///
     /// The combined publisher passes through any requests to *all* upstream publishers. However, it still obeys the demand-fulfilling rule of only sending the request amount downstream. If the demand isn’t `.unlimited`, it drops values from upstream publishers. It implements this by using a buffer size of 1 for each upstream, and holds the most-recent value in each buffer.
     /// All upstream publishers need to finish for this publisher to finish. If an upstream publisher never publishes a value, this publisher never finishes.
     /// If any of the combined publishers terminates with a failure, this publisher also fails.
@@ -1820,6 +1832,7 @@ extension Publisher {
     ///         }
     ///         .sink { print("Result: \($0).") }
     ///
+    ///     pub.send(1)
     ///     pub.send(2)
     ///     pub2.send(2)
     ///     pub3.send(10)
@@ -1845,7 +1858,9 @@ extension Publisher {
     ///
     /// Use ``Publisher/combineLatest(_:_:_:)-48buc`` when you want the downstream subscriber to receive a tuple of the most-recent element from multiple publishers when any of them emit a value. To combine elements from multiple publishers, use ``Publisher/zip(_:_:_:)-16rcy`` instead. To receive just the most-recent element from multiple publishers rather than tuples, use ``Publisher/merge(with:_:_:)``.
     ///
-    /// The combined publisher passes through any requests to **all** upstream publishers. However, it still obeys the demand-fulfilling rule of only sending the request amount downstream. If the demand isn’t ``Subscribers/Demand/unlimited``, it drops values from upstream publishers. It implements this by using a buffer size of 1 for each upstream, and holds the most-recent value in each buffer.
+    /// > Tip: The combined publisher doesn't produce elements until each of its upstream publishers publishes at least one element.
+    ///
+    /// The combined publisher passes through any requests to *all* upstream publishers. However, it still obeys the demand-fulfilling rule of only sending the request amount downstream. If the demand isn’t ``Subscribers/Demand/unlimited``, it drops values from upstream publishers. It implements this by using a buffer size of 1 for each upstream, and holds the most-recent value in each buffer.
     ///
     /// All upstream publishers need to finish for this publisher to finish. If an upstream publisher never publishes a value, this publisher never finishes.
     ///
@@ -1860,6 +1875,7 @@ extension Publisher {
     ///         .combineLatest(pub2, pub3, pub4)
     ///         .sink { print("Result: \($0).") }
     ///
+    ///     pub.send(1)
     ///     pub.send(2)
     ///     pub2.send(2)
     ///     pub3.send(9)
@@ -1890,7 +1906,9 @@ extension Publisher {
     ///
     /// Use ``Publisher/combineLatest(_:_:_:_:)`` when you need to combine the current and 3 additional publishers and transform the values using a closure in which you specify the published elements, to publish a new element.
     ///
-    /// The combined publisher passes through any requests to **all** upstream publishers. However, it still obeys the demand-fulfilling rule of only sending the request amount downstream. If the demand isn’t ``Subscribers/Demand/unlimited``, it drops values from upstream publishers. It implements this by using a buffer size of 1 for each upstream, and holds the most-recent value in each buffer.
+    /// > Tip: The combined publisher doesn't produce elements until each of its upstream publishers publishes at least one element.
+    ///
+    /// The combined publisher passes through any requests to *all* upstream publishers. However, it still obeys the demand-fulfilling rule of only sending the request amount downstream. If the demand isn’t ``Subscribers/Demand/unlimited``, it drops values from upstream publishers. It implements this by using a buffer size of 1 for each upstream, and holds the most-recent value in each buffer.
     ///
     /// All upstream publishers need to finish for this publisher to finish. If an upstream publisher never publishes a value, this publisher never finishes.
     ///
@@ -1907,6 +1925,7 @@ extension Publisher {
     ///         }
     ///         .sink { print("Result: \($0).") }
     ///
+    ///     pub.send(1)
     ///     pub.send(2)
     ///     pub2.send(2)
     ///     pub3.send(9)
@@ -2129,18 +2148,26 @@ extension Publisher where Self.Failure == Never {
     ///
     /// Use this operator when you want to receive elements from a publisher and republish them through a property marked with the `@Published` attribute. The `assign(to:)` operator manages the life cycle of the subscription, canceling the subscription automatically when the ``Published`` instance deinitializes. Because of this, the `assign(to:)` operator doesn't return an ``AnyCancellable`` that you're responsible for like ``assign(to:on:)`` does.
     ///
-    /// The example below shows a model class that receives elements from an internal <doc://com.apple.documentation/documentation/Foundation/Timer/TimerPublisher>, and assigns them to a `@Published` property called `lastUpdated`:
+    /// The example below shows a model class that receives elements from an internal <doc://com.apple.documentation/documentation/Foundation/Timer/TimerPublisher>, and assigns them to a `@Published` property called `lastUpdated`. Because the `to` parameter has the `inout` keyword, you need to use the `&` operator when calling this method.
     ///
     ///     class MyModel: ObservableObject {
-    ///             @Published var lastUpdated: Date = Date()
-    ///             init() {
-    ///                  Timer.publish(every: 1.0, on: .main, in: .common)
-    ///                      .autoconnect()
-    ///                      .assign(to: $lastUpdated)
-    ///             }
+    ///         @Published var lastUpdated: Date = Date()
+    ///         init() {
+    ///              Timer.publish(every: 1.0, on: .main, in: .common)
+    ///                  .autoconnect()
+    ///                  .assign(to: &$lastUpdated)
     ///         }
+    ///     }
     ///
     /// If you instead implemented `MyModel` with `assign(to: lastUpdated, on: self)`, storing the returned ``AnyCancellable`` instance could cause a reference cycle, because the ``Subscribers/Assign`` subscriber would hold a strong reference to `self`. Using `assign(to:)` solves this problem.
+    ///
+    /// While the `to` parameter uses the `inout` keyword, this method doesn't replace a reference type passed to it. Instead, this notation indicates that the operator may modify members of the assigned object, as seen in the following example:
+    ///
+    ///         class MyModel2: ObservableObject {
+    ///             @Published var id: Int = 0
+    ///         }
+    ///         let model2 = MyModel2()
+    ///         Just(100).assign(to: &model2.$id)
     ///
     /// - Parameter published: A property marked with the `@Published` attribute, which receives and republishes all elements received from the upstream publisher.
     @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
@@ -2245,7 +2272,7 @@ extension Publisher {
     ///
     /// - Parameters:
     ///   - strategy: The timing group strategy used by the operator to collect and publish elements.
-    ///   - options: ``Scheduler`` options to use for the strategy.
+    ///   - options: Scheduler options to use for the strategy.
     /// - Returns: A publisher that collects elements by a given strategy, and emits a single array of the collection.
     public func collect<S>(_ strategy: Publishers.TimeGroupingStrategy<S>, options: S.SchedulerOptions? = nil) -> Publishers.CollectByTime<Self, S> where S : Scheduler
 }
@@ -2924,7 +2951,7 @@ extension Publisher {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publisher {
 
-    /// Ingores all upstream elements, but passes along a completion state (finished or failed).
+    /// Ignores all upstream elements, but passes along the upstream publisher's completion state (finished or failed).
     ///
     /// Use the ``Publisher/ignoreOutput()`` operator to determine if a publisher is able to complete successfully or would fail.
     ///
@@ -3195,7 +3222,7 @@ extension Publisher {
     ///
     /// Without the ``Publisher/share()`` operator, stream 1 receives three random values, followed by stream 2 receiving three different random values.
     ///
-    /// Also note that ``Publishers/Share`` is a `class` rather than a `struct` like most other publishers. This means you can use this operator to create a publisher instance that uses reference semantics.
+    /// Also note that ``Publishers/Share`` is a class rather than a structure like most other publishers. This means you can use this operator to create a publisher instance that uses reference semantics.
     /// - Returns: A class instance that shares elements received from its upstream to multiple subscribers.
     public func share() -> Publishers.Share<Self>
 }
@@ -3264,7 +3291,7 @@ extension Publisher {
     ///
     /// After this publisher receives a request for more than 0 items, it requests unlimited items from its upstream publisher.
     ///
-    /// - Parameter areInIncreasingOrder: A closure that receives two elements and returns `true` if they’re in increasing order.
+    /// - Parameter areInIncreasingOrder: A closure that receives two elements and returns true if they’re in increasing order.
     /// - Returns: A publisher that publishes the minimum value received from the upstream publisher, after the upstream publisher finishes.
     public func min(by areInIncreasingOrder: @escaping (Self.Output, Self.Output) -> Bool) -> Publishers.Comparison<Self>
 
@@ -3318,7 +3345,7 @@ extension Publisher {
     ///
     /// After this publisher receives a request for more than 0 items, it requests unlimited items from its upstream publisher.
     ///
-    /// - Parameter areInIncreasingOrder: A closure that receives two elements and returns `true` if they’re in increasing order.
+    /// - Parameter areInIncreasingOrder: A closure that receives two elements and returns true if they’re in increasing order.
     /// - Returns: A publisher that publishes the maximum value received from the upstream publisher, after the upstream publisher finishes.
     public func max(by areInIncreasingOrder: @escaping (Self.Output, Self.Output) -> Bool) -> Publishers.Comparison<Self>
 
@@ -3525,11 +3552,11 @@ extension Publisher {
     ///
     ///
     /// - Parameters:
-    ///   - receiveSubscription: A closure that executes when the publisher receives the subscription — which has a default value of `nil` — from the upstream publisher.
-    ///   - receiveOutput: A closure that executes when the publisher receives the subscription — which has a default value of `nil` — from the upstream publisher.
-    ///   - receiveCompletion: A closure that executes when the publisher receives the subscription — which has a default value of `nil` — from the upstream publisher.
-    ///   - receiveCancel: A closure that executes when the publisher receives the subscription — which has a default value of `nil` — from the upstream publisher.
-    ///   - receiveRequest: A closure that executes when the publisher receives the subscription — which has a default value of `nil` — from the upstream publisher.
+    ///   - receiveSubscription: An optional closure that executes when the publisher receives the subscription from the upstream publisher. This value defaults to `nil`.
+    ///   - receiveOutput: An optional closure that executes when the publisher receives a value from the upstream publisher. This value defaults to `nil`.
+    ///   - receiveCompletion: An optional closure that executes when the upstream publisher finishes normally or terminates with an error. This value defaults to `nil`.
+    ///   - receiveCancel: An optional closure that executes when the downstream receiver cancels publishing. This value defaults to `nil`.
+    ///   - receiveRequest: An optional closure that executes when the publisher receives a request for more elements. This value defaults to `nil`.
     /// - Returns: A publisher that performs the specified closures when publisher events occur.
     public func handleEvents(receiveSubscription: ((Subscription) -> Void)? = nil, receiveOutput: ((Self.Output) -> Void)? = nil, receiveCompletion: ((Subscribers.Completion<Self.Failure>) -> Void)? = nil, receiveCancel: (() -> Void)? = nil, receiveRequest: ((Subscribers.Demand) -> Void)? = nil) -> Publishers.HandleEvents<Self>
 }
@@ -3840,7 +3867,7 @@ extension Publisher {
     ///
     /// Use ``Publisher/zip(_:)`` to combine the latest elements from two publishers and emit a tuple to the downstream. The returned publisher waits until both publishers have emitted an event, then delivers the oldest unconsumed event from each publisher together as a tuple to the subscriber.
     ///
-    /// In this way, the ``Publisher/zip(_:)`` operator alternates between the two publishers, like a zipper or zip fastener pulling together two rows of zipper teeth and linking them together.
+    /// Much like a zipper or zip fastener on a piece of clothing pulls together rows of teeth to link the two sides, ``Publisher/zip(_:)`` combines streams from two different publishers by linking pairs of elements from each side.
     ///
     /// In this example, `numbers` and `letters` are ``PassthroughSubject``s that emit values; once ``Publisher/zip(_:)`` receives one value from each, it publishes the pair as a tuple to the downstream subscriber. It then waits for the next pair of values.
     ///
@@ -3922,7 +3949,7 @@ extension Publisher {
     ///     //  (1, "A", "😀")
     ///     //  (2, "B", "🥰")
     ///
-    /// If any upstream publisher finishes successfully or fails with an error, the zipped publisher does the same.
+    /// If any upstream publisher finishes successfully or fails with an error, so too does the zipped publisher.
     ///
     /// - Parameters:
     ///   - publisher1: A second publisher.
@@ -3958,7 +3985,7 @@ extension Publisher {
     ///     // 😀 A
     ///     // 🥰🥰 BB
     ///
-    /// If any upstream publisher finishes successfully or fails with an error, the zipped publisher does the same.
+    /// If any upstream publisher finishes successfully or fails with an error, so too does the zipped publisher.
     ///
     /// - Parameters:
     ///   - publisher1: A second publisher.
@@ -3995,7 +4022,7 @@ extension Publisher {
     ///     //  (2, "B", "🥰", 0.8)
     ///
     ///
-    /// If any upstream publisher finishes successfully or fails with an error, the zipped publisher does the same.
+    /// If any upstream publisher finishes successfully or fails with an error, so too does the zipped publisher.
     ///
     /// - Parameters:
     ///   - publisher1: A second publisher.
@@ -4035,7 +4062,7 @@ extension Publisher {
     ///     //1 😀 A 0.1
     ///     //2 🥰🥰 BB 0.8
     ///
-    /// If any upstream publisher finishes successfully or fails with an error, the zipped publisher does the same.
+    /// If any upstream publisher finishes successfully or fails with an error, so too does the zipped publisher.
     ///
     /// - Parameters:
     ///   - publisher1: A second publisher.
@@ -4154,9 +4181,9 @@ extension Publisher {
 
     /// Transforms all elements from an upstream publisher into a new publisher up to a maximum number of publishers you specify.
     ///
-    /// Combine‘s ``Publisher/flatMap(maxPublishers:_:)`` operator performs a similar function to the <doc://com.apple.documentation/documentation/Swift/Sequence/2905332-flatmap> operator in the Swift standard library, but turns the elements from one kind of publisher into a new publisher that is sent to subscribers. Use ``Publisher/flatMap(maxPublishers:_:)`` when you want to create a new series of events for downstream subscribers based on the received value. The closure creates the new ``Publisher`` based on the received value. The new ``Publisher`` can emit more than one event, and successful completion of the new ``Publisher`` does not complete the overall stream. Failure of the new ``Publisher`` will fail the overall stream.
+    /// Combine‘s `flatMap(maxPublishers:_:)` operator performs a similar function to the <doc://com.apple.documentation/documentation/Swift/Sequence/2905332-flatmap> operator in the Swift standard library, but turns the elements from one kind of publisher into a new publisher that is sent to subscribers. Use `flatMap(maxPublishers:_:)` when you want to create a new series of events for downstream subscribers based on the received value. The closure creates the new ``Publisher`` based on the received value. The new ``Publisher`` can emit more than one event, and successful completion of the new ``Publisher`` does not complete the overall stream. Failure of the new ``Publisher`` causes the overall stream to fail.
     ///
-    /// In the example below, a ``PassthroughSubject`` publishes `WeatherStation` elements. The ``Publisher/flatMap(maxPublishers:_:)`` receives each element, creates a <doc://com.apple.documentation/documentation/Foundation/URL> from it, and produces a new <doc://com.apple.documentation/documentation/Foundation/URLSession/DataTaskPublisher>, which will publish the data loaded from that <doc://com.apple.documentation/documentation/Foundation/URL>.
+    /// In the example below, a ``PassthroughSubject`` publishes `WeatherStation` elements. The `flatMap(maxPublishers:_:)` receives each element, creates a <doc://com.apple.documentation/documentation/Foundation/URL> from it, and produces a new <doc://com.apple.documentation/documentation/Foundation/URLSession/DataTaskPublisher>, which will publish the data loaded from that <doc://com.apple.documentation/documentation/Foundation/URL>.
     ///
     ///     public struct WeatherStation {
     ///         public let stationID: String
@@ -4265,7 +4292,7 @@ extension Publisher {
     ///
     /// - Parameters:
     ///   - interval: The amount of time to delay.
-    ///   - tolerance: The allowed tolerance in firing delayed events.
+    ///   - tolerance: The allowed tolerance in delivering delayed events. The `Delay` publisher may deliver elements this much sooner or later than the interval specifies.
     ///   - scheduler: The scheduler to deliver the delayed events.
     ///   - options: Options relevant to the scheduler’s behavior.
     /// - Returns: A publisher that delays delivery of elements and completion to the downstream receiver.
@@ -4407,14 +4434,16 @@ extension Publishers {
     final public class Multicast<Upstream, SubjectType> : ConnectablePublisher where Upstream : Publisher, SubjectType : Subject, Upstream.Failure == SubjectType.Failure, Upstream.Output == SubjectType.Output {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
-        /// The publisher that this publisher receives elements from.
+        /// The publisher from which this publisher receives its elements.
         final public let upstream: Upstream
 
         /// A closure that returns a subject each time a subscriber attaches to the multicast publisher.
@@ -4448,11 +4477,13 @@ extension Publishers {
     public struct SubscribeOn<Upstream, Context> : Publisher where Upstream : Publisher, Context : Scheduler {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -4464,6 +4495,11 @@ extension Publishers {
         /// Scheduler options that customize the delivery of elements.
         public let options: Context.SchedulerOptions?
 
+        /// Creates a publisher that receives elements from an upstream publisher on a specific scheduler.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - scheduler: The scheduler the publisher should use to receive elements.
+        ///   - options: Scheduler options that customize the delivery of elements.
         public init(upstream: Upstream, scheduler: Context, options: Context.SchedulerOptions?)
 
         /// Attaches the specified subscriber to this publisher.
@@ -4484,11 +4520,13 @@ extension Publishers {
     public struct MeasureInterval<Upstream, Context> : Publisher where Upstream : Publisher, Context : Scheduler {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher produces elements of the provided scheduler's time type's stride.
         public typealias Output = Context.SchedulerTimeType.Stride
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -4522,11 +4560,13 @@ extension Publishers {
     public struct DropWhile<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -4535,6 +4575,10 @@ extension Publishers {
         /// The closure that indicates whether to drop the element.
         public let predicate: (Publishers.DropWhile<Upstream>.Output) -> Bool
 
+        /// Creates a publisher that omits elements from an upstream publisher until a given closure returns false.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - predicate: The closure that indicates whether to drop the element.
         public init(upstream: Upstream, predicate: @escaping (Publishers.DropWhile<Upstream>.Output) -> Bool)
 
         /// Attaches the specified subscriber to this publisher.
@@ -4551,11 +4595,13 @@ extension Publishers {
     public struct TryDropWhile<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the Swift <doc://com.apple.documentation/documentation/Swift/Error> type.
         public typealias Failure = Error
 
         /// The publisher from which this publisher receives elements.
@@ -4564,6 +4610,10 @@ extension Publishers {
         /// The error-throwing closure that indicates whether to drop the element.
         public let predicate: (Publishers.TryDropWhile<Upstream>.Output) throws -> Bool
 
+        /// Creates a publisher that omits elements from an upstream publisher until a given error-throwing closure returns false.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - predicate: The error-throwing closure that indicates whether to drop the element.
         public init(upstream: Upstream, predicate: @escaping (Publishers.TryDropWhile<Upstream>.Output) throws -> Bool)
 
         /// Attaches the specified subscriber to this publisher.
@@ -4584,11 +4634,13 @@ extension Publishers {
     public struct Filter<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -4597,6 +4649,10 @@ extension Publishers {
         /// A closure that indicates whether to republish an element.
         public let isIncluded: (Upstream.Output) -> Bool
 
+        /// Creates a publisher that republishes all elements that match a provided closure.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - isIncluded: A closure that indicates whether to republish an element.
         public init(upstream: Upstream, isIncluded: @escaping (Upstream.Output) -> Bool)
 
         /// Attaches the specified subscriber to this publisher.
@@ -4613,19 +4669,25 @@ extension Publishers {
     public struct TryFilter<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the Swift <doc://com.apple.documentation/documentation/Swift/Error> type.
         public typealias Failure = Error
 
         /// The publisher from which this publisher receives elements.
         public let upstream: Upstream
 
-        /// A error-throwing closure that indicates whether to republish an element.
+        /// An error-throwing closure that indicates whether this filter should republish an element.
         public let isIncluded: (Upstream.Output) throws -> Bool
 
+        /// Creates a publisher that republishes all elements that match a provided error-throwing closure.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - isIncluded: An error-throwing closure that indicates whether this filter should republish an element.
         public init(upstream: Upstream, isIncluded: @escaping (Upstream.Output) throws -> Bool)
 
         /// Attaches the specified subscriber to this publisher.
@@ -4649,11 +4711,13 @@ extension Publishers {
     public struct Breakpoint<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -4695,11 +4759,13 @@ extension Publishers {
     public struct AllSatisfy<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher produces Boolean elements.
         public typealias Output = Bool
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -4710,6 +4776,10 @@ extension Publishers {
         /// Return `true` to continue, or `false` to cancel the upstream and finish.
         public let predicate: (Upstream.Output) -> Bool
 
+        /// Creates a publisher that publishes a single Boolean value that indicates whether all received elements pass a given predicate.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - predicate: A closure that evaluates each received element.
         public init(upstream: Upstream, predicate: @escaping (Upstream.Output) -> Bool)
 
         /// Attaches the specified subscriber to this publisher.
@@ -4726,11 +4796,13 @@ extension Publishers {
     public struct TryAllSatisfy<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher produces Boolean elements.
         public typealias Output = Bool
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the Swift <doc://com.apple.documentation/documentation/Swift/Error> type.
         public typealias Failure = Error
 
         /// The publisher from which this publisher receives elements.
@@ -4741,6 +4813,10 @@ extension Publishers {
         /// Return `true` to continue, or `false` to cancel the upstream and complete. The closure may throw, in which case the publisher cancels the upstream publisher and fails with the thrown error.
         public let predicate: (Upstream.Output) throws -> Bool
 
+        /// Returns a publisher that publishes a single Boolean value that indicates whether all received elements pass a given error-throwing predicate.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - predicate: A closure that evaluates each received element.
         public init(upstream: Upstream, predicate: @escaping (Upstream.Output) throws -> Bool)
 
         /// Attaches the specified subscriber to this publisher.
@@ -4761,11 +4837,13 @@ extension Publishers {
     public struct RemoveDuplicates<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -4825,15 +4903,20 @@ extension Publishers {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers {
 
+    /// A publisher that decodes elements received from an upstream publisher, using a given decoder.
     public struct Decode<Upstream, Output, Coder> : Publisher where Upstream : Publisher, Output : Decodable, Coder : TopLevelDecoder, Upstream.Output == Coder.Input {
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the Swift <doc://com.apple.documentation/documentation/Swift/Error> type.
         public typealias Failure = Error
 
         public let upstream: Upstream
 
+        /// Creates a publisher that decodes elements received from an upstream publisher, using a given decoder.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - decoder: The decoder that decodes elements received from the upstream publisher.
         public init(upstream: Upstream, decoder: Coder)
 
         /// Attaches the specified subscriber to this publisher.
@@ -4846,18 +4929,25 @@ extension Publishers {
         public func receive<S>(subscriber: S) where Output == S.Input, S : Subscriber, S.Failure == Publishers.Decode<Upstream, Output, Coder>.Failure
     }
 
+    /// A publisher that encodes elements received from an upstream publisher, using a given encoder.
     public struct Encode<Upstream, Coder> : Publisher where Upstream : Publisher, Coder : TopLevelEncoder, Upstream.Output : Encodable {
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the Swift <doc://com.apple.documentation/documentation/Swift/Error> type.
         public typealias Failure = Error
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses the encoder's output type.
         public typealias Output = Coder.Output
 
         public let upstream: Upstream
 
+        /// Creates a publisher that decodes elements received from an upstream publisher, using a given decoder.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - encoder: The encoder that decodes elements received from the upstream publisher.
         public init(upstream: Upstream, encoder: Coder)
 
         /// Attaches the specified subscriber to this publisher.
@@ -4874,23 +4964,29 @@ extension Publishers {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers {
 
-    /// A publisher that emits a Boolean value when a specified element is received from its upstream publisher.
+    /// A publisher that emits a Boolean value when it receives a specific element from its upstream publisher.
     public struct Contains<Upstream> : Publisher where Upstream : Publisher, Upstream.Output : Equatable {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher produces Boolean elements.
         public typealias Output = Bool
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
         public let upstream: Upstream
 
-        /// The element to scan for in the upstream publisher.
+        /// The element to match in the upstream publisher.
         public let output: Upstream.Output
 
+        /// Creates a publisher that emits a Boolean value when it receives a specific element from its upstream publisher.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - output: The element to match in the upstream publisher.
         public init(upstream: Upstream, output: Upstream.Output)
 
         /// Attaches the specified subscriber to this publisher.
@@ -4911,17 +5007,23 @@ extension Publishers {
     public struct CombineLatest<A, B> : Publisher where A : Publisher, B : Publisher, A.Failure == B.Failure {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher produces two-element tuples of the upstream publishers' output types.
         public typealias Output = (A.Output, B.Output)
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the failure type shared by its upstream publishers.
         public typealias Failure = A.Failure
 
         public let a: A
 
         public let b: B
 
+        /// Creates a publisher that receives and combines the latest elements from two publishers.
+        /// - Parameters:
+        ///   - a: The first upstream publisher.
+        ///   - b: The second upstream publisher.
         public init(_ a: A, _ b: B)
 
         /// Attaches the specified subscriber to this publisher.
@@ -4938,11 +5040,13 @@ extension Publishers {
     public struct CombineLatest3<A, B, C> : Publisher where A : Publisher, B : Publisher, C : Publisher, A.Failure == B.Failure, B.Failure == C.Failure {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher produces three-element tuples of the upstream publishers' output types.
         public typealias Output = (A.Output, B.Output, C.Output)
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the failure type shared by its upstream publishers.
         public typealias Failure = A.Failure
 
         public let a: A
@@ -4967,11 +5071,13 @@ extension Publishers {
     public struct CombineLatest4<A, B, C, D> : Publisher where A : Publisher, B : Publisher, C : Publisher, D : Publisher, A.Failure == B.Failure, B.Failure == C.Failure, C.Failure == D.Failure {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher produces four-element tuples of the upstream publishers' output types.
         public typealias Output = (A.Output, B.Output, C.Output, D.Output)
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the failure type shared by its upstream publishers.
         public typealias Failure = A.Failure
 
         public let a: A
@@ -5004,16 +5110,20 @@ extension Publishers {
     public class Autoconnect<Upstream> : Publisher where Upstream : ConnectablePublisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstram publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
         final public let upstream: Upstream
 
+        /// Creates a publisher that automatically connects to an upstream connectable publisher.
+        /// - Parameter upstream: The publisher from which this publisher receives elements.
         public init(upstream: Upstream)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5042,11 +5152,13 @@ extension Publishers {
     public struct Print<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// A string with which to prefix all log messages.
@@ -5082,19 +5194,25 @@ extension Publishers {
     public struct PrefixWhile<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
         public let upstream: Upstream
 
-        /// The closure that determines whether whether publishing should continue.
+        /// The closure that determines whether publishing should continue.
         public let predicate: (Publishers.PrefixWhile<Upstream>.Output) -> Bool
 
+        /// Creates a publisher that republishes elements while a predicate closure indicates publishing should continue.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - predicate: The closure that determines whether publishing should continue.
         public init(upstream: Upstream, predicate: @escaping (Publishers.PrefixWhile<Upstream>.Output) -> Bool)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5111,11 +5229,13 @@ extension Publishers {
     public struct TryPrefixWhile<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the Swift <doc://com.apple.documentation/documentation/Swift/Error> type.
         public typealias Failure = Error
 
         /// The publisher from which this publisher receives elements.
@@ -5124,6 +5244,10 @@ extension Publishers {
         /// The error-throwing closure that determines whether publishing should continue.
         public let predicate: (Publishers.TryPrefixWhile<Upstream>.Output) throws -> Bool
 
+        /// Creates a publisher that republishes elements while an error-throwing predicate closure indicates publishing should continue.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - predicate: The error-throwing closure that determines whether publishing should continue.
         public init(upstream: Upstream, predicate: @escaping (Publishers.TryPrefixWhile<Upstream>.Output) throws -> Bool)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5142,10 +5266,12 @@ extension Publishers {
 
     /// A publisher that appears to send a specified failure type.
     ///
-    /// The publisher cannot actually fail with the specified type and instead just finishes normally. Use this publisher type when you need to match the error types for two mismatched publishers.
+    /// The publisher can't actually fail with the specified type and finishes normally. Use this publisher type when you need to match the error types for two mismatched publishers.
     public struct SetFailureType<Upstream, Failure> : Publisher where Upstream : Publisher, Failure : Error, Upstream.Failure == Never {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The publisher from which this publisher receives elements.
@@ -5176,11 +5302,13 @@ extension Publishers {
     public struct ContainsWhere<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher produces Boolean elements.
         public typealias Output = Bool
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -5189,6 +5317,10 @@ extension Publishers {
         /// The closure that determines whether the publisher should consider an element as a match.
         public let predicate: (Upstream.Output) -> Bool
 
+        /// Creates a publisher that emits a Boolean value upon receiving an element that satisfies the predicate closure.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - predicate: The closure that determines whether the publisher should consider an element as a match.
         public init(upstream: Upstream, predicate: @escaping (Upstream.Output) -> Bool)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5205,19 +5337,25 @@ extension Publishers {
     public struct TryContainsWhere<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher produces Boolean elements.
         public typealias Output = Bool
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the Swift <doc://com.apple.documentation/documentation/Swift/Error> type.
         public typealias Failure = Error
 
         /// The publisher from which this publisher receives elements.
         public let upstream: Upstream
 
-        /// The error-throwing closure that determines whether this publisher should emit a `true` element.
+        /// The error-throwing closure that determines whether this publisher should emit a Boolean true element.
         public let predicate: (Upstream.Output) throws -> Bool
 
+        /// Creates a publisher that emits a Boolean value upon receiving an element that satisfies the throwing predicate closure.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - predicate: The error-throwing closure that determines whether this publisher should emit a Boolean true element.
         public init(upstream: Upstream, predicate: @escaping (Upstream.Output) throws -> Bool)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5242,11 +5380,13 @@ extension Publishers {
     public struct MakeConnectable<Upstream> : ConnectablePublisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// Creates a connectable publisher, attached to the provide upstream publisher.
@@ -5287,11 +5427,13 @@ extension Publishers {
     public struct CollectByTime<Upstream, Context> : Publisher where Upstream : Publisher, Context : Scheduler {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher publishes arrays of its upstream publisher's output type.
         public typealias Output = [Upstream.Output]
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher that this publisher receives elements from.
@@ -5300,9 +5442,14 @@ extension Publishers {
         /// The strategy with which to collect and publish elements.
         public let strategy: Publishers.TimeGroupingStrategy<Context>
 
-        /// `Scheduler` options to use for the strategy.
+        /// Scheduler options to use for the strategy.
         public let options: Context.SchedulerOptions?
 
+        /// Creates a publisher that buffers and periodically publishes its items.
+        /// - Parameters:
+        ///   - upstream: The publisher that this publisher receives elements from.
+        ///   - strategy: The strategy with which to collect and publish elements.
+        ///   - options: `Scheduler` options to use for the strategy.
         public init(upstream: Upstream, strategy: Publishers.TimeGroupingStrategy<Context>, options: Context.SchedulerOptions?)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5319,16 +5466,20 @@ extension Publishers {
     public struct Collect<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher publishes arrays of its upstream publisher's output type.
         public typealias Output = [Upstream.Output]
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher that this publisher receives elements from.
         public let upstream: Upstream
 
+        /// Creates a publisher that buffers items.
+        /// - Parameter upstream: The publisher that this publisher receives elements from.
         public init(upstream: Upstream)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5345,19 +5496,25 @@ extension Publishers {
     public struct CollectByCount<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher publishes arrays of its upstream publisher's output type.
         public typealias Output = [Upstream.Output]
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
-        /// The publisher from which this publisher receives elements.
+        /// The publisher that this publisher receives elements from.
         public let upstream: Upstream
 
         /// The maximum number of received elements to buffer before publishing.
         public let count: Int
 
+        /// Creates a publisher that buffers a maximum number of items.
+        /// - Parameters:
+        ///   - upstream: The publisher that this publisher receives elements from.
+        ///   - count: The maximum number of received elements to buffer before publishing.
         public init(upstream: Upstream, count: Int)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5378,22 +5535,29 @@ extension Publishers {
     public struct ReceiveOn<Upstream, Context> : Publisher where Upstream : Publisher, Context : Scheduler {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
         public let upstream: Upstream
 
-        /// The scheduler the publisher is to use for element delivery.
+        /// The scheduler the publisher uses to deliver elements.
         public let scheduler: Context
 
-        /// Scheduler options that customize the delivery of elements.
+        /// Scheduler options used to customize element delivery.
         public let options: Context.SchedulerOptions?
 
+        /// Creates a publisher that delivers elements to its downstream subscriber on a specific scheduler.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - scheduler: The scheduler the publisher uses to deliver elements.
+        ///   - options: Scheduler options used to customize element delivery.
         public init(upstream: Upstream, scheduler: Context, options: Context.SchedulerOptions?)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5415,7 +5579,7 @@ extension Publishers {
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -5438,11 +5602,13 @@ extension Publishers {
     public struct MapKeyPath2<Upstream, Output0, Output1> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher produces two-element tuples, where each menber's type matches the type of the corresponding key path's property.
         public typealias Output = (Output0, Output1)
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -5468,11 +5634,13 @@ extension Publishers {
     public struct MapKeyPath3<Upstream, Output0, Output1, Output2> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher produces three-element tuples, where each menber's type matches the type of the corresponding key path's property.
         public typealias Output = (Output0, Output1, Output2)
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publishers' failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -5501,14 +5669,17 @@ extension Publishers {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers {
 
+    /// A publisher that republishes elements until another publisher emits an element.
     public struct PrefixUntilOutput<Upstream, Other> : Publisher where Upstream : Publisher, Other : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -5517,6 +5688,10 @@ extension Publishers {
         /// Another publisher, whose first output causes this publisher to finish.
         public let other: Other
 
+        /// Creates a publisher that republishes elements until another publisher emits an element.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - other: Another publisher, the first output from which causes this publisher to finish.
         public init(upstream: Upstream, other: Other)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5538,7 +5713,7 @@ extension Publishers {
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -5550,6 +5725,11 @@ extension Publishers {
         /// A closure that takes the previously-accumulated value and the next element from the upstream publisher to produce a new value.
         public let nextPartialResult: (Output, Upstream.Output) -> Output
 
+        /// Creates a publisher that applies a closure to all received elements and produces an accumulated value when the upstream publisher finishes.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - initial: The initial value provided on the first invocation of the closure.
+        ///   - nextPartialResult: A closure that takes the previously-accumulated value and the next element from the upstream publisher to produce a new value.
         public init(upstream: Upstream, initial: Output, nextPartialResult: @escaping (Output, Upstream.Output) -> Output)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5567,13 +5747,13 @@ extension Publishers {
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the Swift <doc://com.apple.documentation/documentation/Swift/Error> type.
         public typealias Failure = Error
 
         /// The publisher from which this publisher receives elements.
         public let upstream: Upstream
 
-        /// The initial value provided on the first invocation of the closure.
+        /// The initial value provided on the first-use of the closure.
         public let initial: Output
 
         /// An error-throwing closure that takes the previously-accumulated value and the next element from the upstream to produce a new value.
@@ -5581,6 +5761,11 @@ extension Publishers {
         /// If this closure throws an error, the publisher fails and passes the error to its subscriber.
         public let nextPartialResult: (Output, Upstream.Output) throws -> Output
 
+        /// Creates a publisher that applies an error-throwing closure to all received elements and produces an accumulated value when the upstream publisher finishes.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - initial: The initial value provided on the first-use of the closure.
+        ///   - nextPartialResult: An error-throwing closure that takes the previously-accumulated value and the next element from the upstream to produce a new value. If this closure throws an error, the publisher fails and passes the error to its subscriber.
         public init(upstream: Upstream, initial: Output, nextPartialResult: @escaping (Output, Upstream.Output) throws -> Output)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5597,12 +5782,12 @@ extension Publishers {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers {
 
-    /// A publisher that republishes all non-`nil` results of calling a closure with each received element.
+    /// A publisher that republishes all non-nil results of calling a closure with each received element.
     public struct CompactMap<Upstream, Output> : Publisher where Upstream : Publisher {
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -5611,6 +5796,10 @@ extension Publishers {
         /// A closure that receives values from the upstream publisher and returns optional values.
         public let transform: (Upstream.Output) -> Output?
 
+        /// Creates a publisher that republishes all non-`nil` results of calling a closure with each received element.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - transform: A closure that receives values from the upstream publisher and returns optional values.
         public init(upstream: Upstream, transform: @escaping (Upstream.Output) -> Output?)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5623,12 +5812,12 @@ extension Publishers {
         public func receive<S>(subscriber: S) where Output == S.Input, S : Subscriber, Upstream.Failure == S.Failure
     }
 
-    /// A publisher that republishes all non-`nil` results of calling an error-throwing closure with each received element.
+    /// A publisher that republishes all non-nil results of calling an error-throwing closure with each received element.
     public struct TryCompactMap<Upstream, Output> : Publisher where Upstream : Publisher {
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the Swift <doc://com.apple.documentation/documentation/Swift/Error> type.
         public typealias Failure = Error
 
         /// The publisher from which this publisher receives elements.
@@ -5659,17 +5848,25 @@ extension Publishers {
     public struct Merge<A, B> : Publisher where A : Publisher, B : Publisher, A.Failure == B.Failure, A.Output == B.Output {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publishers' common output type.
         public typealias Output = A.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publishers' common failure type.
         public typealias Failure = A.Failure
 
+        /// A publisher to merge.
         public let a: A
 
+        /// A second publisher to merge.
         public let b: B
 
+        /// Creates a publisher created by applying the merge function to two upstream publishers.
+        /// - Parameters:
+        ///   - a: A publisher to merge
+        ///   - b: A second publisher to merge.
         public init(_ a: A, _ b: B)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5698,19 +5895,29 @@ extension Publishers {
     public struct Merge3<A, B, C> : Publisher where A : Publisher, B : Publisher, C : Publisher, A.Failure == B.Failure, A.Output == B.Output, B.Failure == C.Failure, B.Output == C.Output {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publishers' common output type.
         public typealias Output = A.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publishers' common failure type.
         public typealias Failure = A.Failure
 
+        /// A publisher to merge.
         public let a: A
 
+        /// A second publisher to merge.
         public let b: B
 
+        /// A third publisher to merge.
         public let c: C
 
+        /// Creates a publisher created by applying the merge function to three upstream publishers.
+        /// - Parameters:
+        ///   - a: A publisher to merge
+        ///   - b: A second publisher to merge.
+        ///   - c: A third publisher to merge.
         public init(_ a: A, _ b: B, _ c: C)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5737,21 +5944,33 @@ extension Publishers {
     public struct Merge4<A, B, C, D> : Publisher where A : Publisher, B : Publisher, C : Publisher, D : Publisher, A.Failure == B.Failure, A.Output == B.Output, B.Failure == C.Failure, B.Output == C.Output, C.Failure == D.Failure, C.Output == D.Output {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publishers' common output type.
         public typealias Output = A.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publishers' common failure type.
         public typealias Failure = A.Failure
 
+        /// A publisher to merge.
         public let a: A
 
+        /// A second publisher to merge.
         public let b: B
 
+        /// A third publisher to merge.
         public let c: C
 
+        /// A fourth publisher to merge.
         public let d: D
 
+        /// Creates a publisher created by applying the merge function to four upstream publishers.
+        /// - Parameters:
+        ///   - a: A publisher to merge
+        ///   - b: A second publisher to merge.
+        ///   - c: A third publisher to merge.
+        ///   - d: A fourth publisher to merge.
         public init(_ a: A, _ b: B, _ c: C, _ d: D)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5776,23 +5995,37 @@ extension Publishers {
     public struct Merge5<A, B, C, D, E> : Publisher where A : Publisher, B : Publisher, C : Publisher, D : Publisher, E : Publisher, A.Failure == B.Failure, A.Output == B.Output, B.Failure == C.Failure, B.Output == C.Output, C.Failure == D.Failure, C.Output == D.Output, D.Failure == E.Failure, D.Output == E.Output {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publishers' common output type.
         public typealias Output = A.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publishers' common failure type.
         public typealias Failure = A.Failure
 
+        /// A publisher to merge.
         public let a: A
 
+        /// A second publisher to merge.
         public let b: B
 
+        /// A third publisher to merge.
         public let c: C
 
+        /// A fourth publisher to merge.
         public let d: D
 
+        /// A fifth publisher to merge.
         public let e: E
 
+        /// Creates a publisher created by applying the merge function to five upstream publishers.
+        /// - Parameters:
+        ///   - a: A publisher to merge
+        ///   - b: A second publisher to merge.
+        ///   - c: A third publisher to merge.
+        ///   - d: A fourth publisher to merge.
+        ///   - e: A fifth publisher to merge.
         public init(_ a: A, _ b: B, _ c: C, _ d: D, _ e: E)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5815,25 +6048,41 @@ extension Publishers {
     public struct Merge6<A, B, C, D, E, F> : Publisher where A : Publisher, B : Publisher, C : Publisher, D : Publisher, E : Publisher, F : Publisher, A.Failure == B.Failure, A.Output == B.Output, B.Failure == C.Failure, B.Output == C.Output, C.Failure == D.Failure, C.Output == D.Output, D.Failure == E.Failure, D.Output == E.Output, E.Failure == F.Failure, E.Output == F.Output {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publishers' common output type.
         public typealias Output = A.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publishers' common failure type.
         public typealias Failure = A.Failure
 
+        /// A publisher to merge.
         public let a: A
 
+        /// A second publisher to merge.
         public let b: B
 
+        /// A third publisher to merge.
         public let c: C
 
+        /// A fourth publisher to merge.
         public let d: D
 
+        /// A fifth publisher to merge.
         public let e: E
 
+        /// A sixth publisher to merge.
         public let f: F
 
+        /// publisher created by applying the merge function to six upstream publishers.
+        /// - Parameters:
+        ///   - a: A publisher to merge
+        ///   - b: A second publisher to merge.
+        ///   - c: A third publisher to merge.
+        ///   - d: A fourth publisher to merge.
+        ///   - e: A fifth publisher to merge.
+        ///   - f: A sixth publisher to merge.
         public init(_ a: A, _ b: B, _ c: C, _ d: D, _ e: E, _ f: F)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5854,27 +6103,45 @@ extension Publishers {
     public struct Merge7<A, B, C, D, E, F, G> : Publisher where A : Publisher, B : Publisher, C : Publisher, D : Publisher, E : Publisher, F : Publisher, G : Publisher, A.Failure == B.Failure, A.Output == B.Output, B.Failure == C.Failure, B.Output == C.Output, C.Failure == D.Failure, C.Output == D.Output, D.Failure == E.Failure, D.Output == E.Output, E.Failure == F.Failure, E.Output == F.Output, F.Failure == G.Failure, F.Output == G.Output {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publishers' common output type.
         public typealias Output = A.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publishers' common failure type.
         public typealias Failure = A.Failure
 
+        /// A publisher to merge.
         public let a: A
 
+        /// A second publisher to merge.
         public let b: B
 
+        /// A third publisher to merge.
         public let c: C
 
+        /// A fourth publisher to merge.
         public let d: D
 
+        /// A fifth publisher to merge.
         public let e: E
 
+        /// A sixth publisher to merge.
         public let f: F
 
+        /// An seventh publisher to merge.
         public let g: G
 
+        /// Creates a publisher created by applying the merge function to seven upstream publishers.
+        /// - Parameters:
+        ///   - a: A publisher to merge
+        ///   - b: A second publisher to merge.
+        ///   - c: A third publisher to merge.
+        ///   - d: A fourth publisher to merge.
+        ///   - e: A fifth publisher to merge.
+        ///   - f: A sixth publisher to merge.
+        ///   - g: An seventh publisher to merge.
         public init(_ a: A, _ b: B, _ c: C, _ d: D, _ e: E, _ f: F, _ g: G)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5893,29 +6160,49 @@ extension Publishers {
     public struct Merge8<A, B, C, D, E, F, G, H> : Publisher where A : Publisher, B : Publisher, C : Publisher, D : Publisher, E : Publisher, F : Publisher, G : Publisher, H : Publisher, A.Failure == B.Failure, A.Output == B.Output, B.Failure == C.Failure, B.Output == C.Output, C.Failure == D.Failure, C.Output == D.Output, D.Failure == E.Failure, D.Output == E.Output, E.Failure == F.Failure, E.Output == F.Output, F.Failure == G.Failure, F.Output == G.Output, G.Failure == H.Failure, G.Output == H.Output {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publishers' common output type.
         public typealias Output = A.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publishers' common failure type.
         public typealias Failure = A.Failure
 
+        /// A publisher to merge.
         public let a: A
 
+        /// A second publisher to merge.
         public let b: B
 
+        /// A third publisher to merge.
         public let c: C
 
+        /// A fourth publisher to merge.
         public let d: D
 
+        /// A fifth publisher to merge.
         public let e: E
 
+        /// A sixth publisher to merge.
         public let f: F
 
+        /// An seventh publisher to merge.
         public let g: G
 
+        /// A eighth publisher to merge.
         public let h: H
 
+        /// Creates a publisher created by applying the merge function to eight upstream publishers.
+        /// - Parameters:
+        ///   - a: A publisher to merge
+        ///   - b: A second publisher to merge.
+        ///   - c: A third publisher to merge.
+        ///   - d: A fourth publisher to merge.
+        ///   - e: A fifth publisher to merge.
+        ///   - f: A sixth publisher to merge.
+        ///   - g: An seventh publisher to merge.
+        ///   - h: An eighth publisher to merge.
         public init(_ a: A, _ b: B, _ c: C, _ d: D, _ e: E, _ f: F, _ g: G, _ h: H)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5928,20 +6215,28 @@ extension Publishers {
         public func receive<S>(subscriber: S) where S : Subscriber, H.Failure == S.Failure, H.Output == S.Input
     }
 
+    /// A publisher created by applying the merge function to an arbitrary number of upstream publishers.
     public struct MergeMany<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publishers' common output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publishers' common failure type.
         public typealias Failure = Upstream.Failure
 
+        /// The array of upstream publishers that this publisher merges together.
         public let publishers: [Upstream]
 
+        /// Creates a publisher created by applying the merge function to an arbitrary number of upstream publishers.
+        /// - Parameter upstream: A variadic parameter containing zero or more publishers to merge with this publisher.
         public init(_ upstream: Upstream...)
 
+        /// Creates a publisher created by applying the merge function to a sequence of upstream publishers.
+        /// - Parameter upstream: A sequence containing zero or more publishers to merge with this publisher.
         public init<S>(_ upstream: S) where Upstream == S.Element, S : Sequence
 
         /// Attaches the specified subscriber to this publisher.
@@ -5960,19 +6255,28 @@ extension Publishers {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers {
 
+    /// A publisher that transforms elements from the upstream publisher by providing the current element to a closure along with the last value returned by the closure.
     public struct Scan<Upstream, Output> : Publisher where Upstream : Publisher {
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
+        /// The publisher that this publisher receives elements from.
         public let upstream: Upstream
 
+        /// The previous result returned by the `nextPartialResult` closure.
         public let initialResult: Output
 
+        ///  An error-throwing closure that takes as its arguments the previous value returned by the closure and the next element emitted from the upstream publisher.
         public let nextPartialResult: (Output, Upstream.Output) -> Output
 
+        /// Creates a publisher that transforms elements from the upstream publisher by providing the current element to a closure along with the last value returned by the closure.
+        /// - Parameters:
+        ///   - upstream: The publisher that this publisher receives elements from.
+        ///   - initialResult: The previous result returned by the `nextPartialResult` closure.
+        ///   - nextPartialResult: A closure that takes as its arguments the previous value returned by the closure and the next element emitted from the upstream publisher.
         public init(upstream: Upstream, initialResult: Output, nextPartialResult: @escaping (Output, Upstream.Output) -> Output)
 
         /// Attaches the specified subscriber to this publisher.
@@ -5985,19 +6289,28 @@ extension Publishers {
         public func receive<S>(subscriber: S) where Output == S.Input, S : Subscriber, Upstream.Failure == S.Failure
     }
 
+    /// A publisher that transforms elements from the upstream publisher by providing the current element to a failable closure along with the last value returned by the closure.
     public struct TryScan<Upstream, Output> : Publisher where Upstream : Publisher {
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the Swift <doc://com.apple.documentation/documentation/Swift/Error> type.
         public typealias Failure = Error
 
+        /// The publisher that this publisher receives elements from.
         public let upstream: Upstream
 
+        /// The previous result returned by the `nextPartialResult` closure.
         public let initialResult: Output
 
+        /// An error-throwing closure that takes as its arguments the previous value returned by the closure and the next element emitted from the upstream publisher.
         public let nextPartialResult: (Output, Upstream.Output) throws -> Output
 
+        /// Creates a publisher that transforms elements from the upstream publisher by providing the current element to a failable closure along with the last value returned by the closure.
+        /// - Parameters:
+        ///   - upstream: The publisher that this publisher receives elements from.
+        ///   - initialResult: The previous result returned by the `nextPartialResult` closure.
+        ///   - nextPartialResult: An error-throwing closure that takes as its arguments the previous value returned by the closure and the next element emitted from the upstream publisher.
         public init(upstream: Upstream, initialResult: Output, nextPartialResult: @escaping (Output, Upstream.Output) throws -> Output)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6018,16 +6331,20 @@ extension Publishers {
     public struct Count<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher produces integer elements.
         public typealias Output = Int
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
         public let upstream: Upstream
 
+        /// Creates a publisher that publishes the number of elements received from the upstream publisher.
+        /// - Parameter upstream: The publisher from which this publisher receives elements.
         public init(upstream: Upstream)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6044,15 +6361,17 @@ extension Publishers {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers {
 
-    /// A publisher that only publishes the last element of a stream that satisfies a predicate closure, once the stream finishes.
+    /// A publisher that waits until after the stream finishes and then publishes the last element of the stream that satisfies a predicate closure.
     public struct LastWhere<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -6061,6 +6380,10 @@ extension Publishers {
         /// The closure that determines whether to publish an element.
         public let predicate: (Publishers.LastWhere<Upstream>.Output) -> Bool
 
+        /// Creates a publisher that waits until after the stream finishes and then publishes the last element of the stream that satisfies a predicate closure.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - predicate: The closure that determines whether to publish an element.
         public init(upstream: Upstream, predicate: @escaping (Publishers.LastWhere<Upstream>.Output) -> Bool)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6073,15 +6396,17 @@ extension Publishers {
         public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, Upstream.Output == S.Input
     }
 
-    /// A publisher that only publishes the last element of a stream that satisfies a error-throwing predicate closure, once the stream finishes.
+    /// A publisher that waits until after the stream finishes and then publishes the last element of the stream that satisfies an error-throwing predicate closure.
     public struct TryLastWhere<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the Swift <doc://com.apple.documentation/documentation/Swift/Error> type.
         public typealias Failure = Error
 
         /// The publisher from which this publisher receives elements.
@@ -6090,6 +6415,10 @@ extension Publishers {
         /// The error-throwing closure that determines whether to publish an element.
         public let predicate: (Publishers.TryLastWhere<Upstream>.Output) throws -> Bool
 
+        /// Creates a publisher that waits until after the stream finishes and then publishes the last element of the stream that satisfies an error-throwing predicate closure.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - predicate: The error-throwing closure that determines whether to publish an element.
         public init(upstream: Upstream, predicate: @escaping (Publishers.TryLastWhere<Upstream>.Output) throws -> Bool)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6106,20 +6435,24 @@ extension Publishers {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers {
 
-    /// A publisher that ignores all upstream elements, but passes along a completion state (finish or failed).
+    /// A publisher that ignores all upstream elements, but passes along the upstream publisher's completion state (finished or failed).
     public struct IgnoreOutput<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher never produces elements.
         public typealias Output = Never
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
         public let upstream: Upstream
 
+        /// Creates a publisher that ignores all upstream elements, but passes along the upstream publisher's completion state (finish or failed).
+        /// - Parameter upstream: The publisher from which this publisher receives elements.
         public init(upstream: Upstream)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6145,11 +6478,13 @@ extension Publishers {
     public struct SwitchToLatest<P, Upstream> : Publisher where P : Publisher, P == Upstream.Output, Upstream : Publisher, P.Failure == Upstream.Failure {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher produces elements of the type produced by the upstream publisher-of-publishers.
         public typealias Output = P.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces errors of the type produced by the upstream publisher-of-publishers.
         public typealias Failure = P.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -6178,11 +6513,13 @@ extension Publishers {
     public struct Retry<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -6218,6 +6555,8 @@ extension Publishers {
     public struct MapError<Upstream, Failure> : Publisher where Upstream : Publisher, Failure : Error {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The publisher from which this publisher receives elements.
@@ -6226,6 +6565,10 @@ extension Publishers {
         /// The closure that converts the upstream failure into a new error.
         public let transform: (Upstream.Failure) -> Failure
 
+        /// Creates a publisher that converts any failure from the upstream publisher into a new error.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - transform: The closure that converts the upstream failure into a new error.
         public init(upstream: Upstream, transform: @escaping (Upstream.Failure) -> Failure)
 
         public init(upstream: Upstream, _ map: @escaping (Upstream.Failure) -> Failure)
@@ -6248,11 +6591,13 @@ extension Publishers {
     public struct Throttle<Upstream, Context> : Publisher where Upstream : Publisher, Context : Scheduler {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -6269,6 +6614,12 @@ extension Publishers {
         /// If `false`, the publisher emits the first element received during the interval.
         public let latest: Bool
 
+        /// Creates a publisher that publishes either the most-recent or first element published by the upstream publisher in a specified time interval.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - interval: The interval in which to find and emit the most recent element.
+        ///   - scheduler: The scheduler on which to publish elements.
+        ///   - latest: A Boolean value indicating whether to publish the most recent element. If `false`, the publisher emits the first element received during the interval.
         public init(upstream: Upstream, interval: Context.SchedulerTimeType.Stride, scheduler: Context, latest: Bool)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6289,21 +6640,26 @@ extension Publishers {
     ///
     /// This publisher type supports multiple subscribers, all of whom receive unchanged elements and completion states from the upstream publisher.
     ///
-    ///  - Tip: ``Publishers/Share`` is effectively a combination of the ``Publishers/Multicast`` and ``PassthroughSubject`` publishers, with an implicit ``ConnectablePublisher/autoconnect()``.
+    ///  > Tip: ``Publishers/Share`` is effectively a combination of the ``Publishers/Multicast`` and ``PassthroughSubject`` publishers, with an implicit ``ConnectablePublisher/autoconnect()``.
     ///
-    /// Also note that ``Publishers/Share`` is a `class` rather than a `struct` like most other publishers. Use this type when you need a publisher instance that uses reference semantics.
+    /// Be aware that ``Publishers/Share`` is a class rather than a structure like most other publishers. Use this type when you need a publisher instance that uses reference semantics.
     final public class Share<Upstream> : Publisher, Equatable where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
+        /// The publisher from which this publisher receives elements.
         final public let upstream: Upstream
 
+        /// Creates a publisher that shares the output of an upstream publisher with multiple subscribers.
+        /// - Parameter upstream: The publisher from which this publisher receives elements.
         public init(upstream: Upstream)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6315,14 +6671,11 @@ extension Publishers {
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
         final public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, Upstream.Output == S.Input
 
-        /// Returns a Boolean value indicating whether two values are equal.
-        ///
-        /// Equality is the inverse of inequality. For any values `a` and `b`,
-        /// `a == b` implies that `a != b` is `false`.
-        ///
+        /// Returns a Boolean value that indicates whether two publishers are equivalent.
         /// - Parameters:
-        ///   - lhs: A value to compare.
-        ///   - rhs: Another value to compare.
+        ///   - lhs: A `Share` publisher to compare for equality.
+        ///   - rhs: Another `Share` publisher to compare for equality.
+        /// - Returns: `true` if the publishers have reference equality (`===`); otherwise `false`.
         public static func == (lhs: Publishers.Share<Upstream>, rhs: Publishers.Share<Upstream>) -> Bool
     }
 }
@@ -6334,19 +6687,25 @@ extension Publishers {
     public struct Comparison<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upsteam publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
-        /// The publisher that this publisher receives elements from.
+        /// The publisher from which this publisher receives its elements.
         public let upstream: Upstream
 
-        /// A closure that receives two elements and returns `true` if they are in increasing order.
+        /// A closure that receives two elements and returns true if they are in increasing order.
         public let areInIncreasingOrder: (Upstream.Output, Upstream.Output) -> Bool
 
+        /// Creates a publisher that republishes items from another publisher only if each new item is in increasing order from the previously-published item.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives its elements.
+        ///   - areInIncreasingOrder: A closure that receives two elements and returns true if they are in increasing order.
         public init(upstream: Upstream, areInIncreasingOrder: @escaping (Upstream.Output, Upstream.Output) -> Bool)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6363,19 +6722,25 @@ extension Publishers {
     public struct TryComparison<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upsteam publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the Swift <doc://com.apple.documentation/documentation/Swift/Error> type.
         public typealias Failure = Error
 
-        /// The publisher that this publisher receives elements from.
+        /// The publisher from which this publisher receives its elements.
         public let upstream: Upstream
 
-        /// A closure that receives two elements and returns `true` if they are in increasing order.
+        /// A closure that receives two elements and returns true if they are in increasing order.
         public let areInIncreasingOrder: (Upstream.Output, Upstream.Output) throws -> Bool
 
+        /// Creates a publisher that republishes items from another publisher only if each new item is in increasing order from the previously-published item, and fails if the ordering logic throws an error.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives its elements.
+        ///   - areInIncreasingOrder: A closure that receives two elements and returns true if they are in increasing order.
         public init(upstream: Upstream, areInIncreasingOrder: @escaping (Upstream.Output, Upstream.Output) throws -> Bool)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6396,11 +6761,13 @@ extension Publishers {
     public struct ReplaceEmpty<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The element to deliver when the upstream publisher finishes without delivering any elements.
@@ -6409,6 +6776,10 @@ extension Publishers {
         /// The publisher from which this publisher receives elements.
         public let upstream: Upstream
 
+        /// Creates a publisher that replaces an empty stream with a provided element.
+        /// - Parameters:
+        ///   - upstream: The element to deliver when the upstream publisher finishes without delivering any elements.
+        ///   - output: The publisher from which this publisher receives elements.
         public init(upstream: Upstream, output: Publishers.ReplaceEmpty<Upstream>.Output)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6425,11 +6796,13 @@ extension Publishers {
     public struct ReplaceError<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher never fails.
         public typealias Failure = Never
 
         /// The element with which to replace errors from the upstream publisher.
@@ -6438,6 +6811,10 @@ extension Publishers {
         /// The publisher from which this publisher receives elements.
         public let upstream: Upstream
 
+        /// Creates a publisher that replaces any errors in the stream with a provided element.
+        /// - Parameters:
+        ///   - upstream: The element with which to replace errors from the upstream publisher.
+        ///   - output: The publisher from which this publisher receives elements.
         public init(upstream: Upstream, output: Publishers.ReplaceError<Upstream>.Output)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6460,11 +6837,13 @@ extension Publishers {
     public struct AssertNoFailure<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher never produces errors.
         public typealias Failure = Never
 
         /// The publisher from which this publisher receives elements.
@@ -6479,6 +6858,12 @@ extension Publishers {
         /// The line number used in the error message.
         public let line: UInt
 
+        /// Creates a publisher that raises a fatal error upon receiving any failure, and otherwise republishes all received input.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - prefix: The string used at the beginning of the fatal error message.
+        ///   - file: The filename used in the error message.
+        ///   - line: The line number used in the error message.
         public init(upstream: Upstream, prefix: String, file: StaticString, line: UInt)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6499,14 +6884,16 @@ extension Publishers {
     public struct DropUntilOutput<Upstream, Other> : Publisher where Upstream : Publisher, Other : Publisher, Upstream.Failure == Other.Failure {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
-        /// The publisher that this publisher receives elements from.
+        /// The publisher from which this publisher receives its elements.
         public let upstream: Upstream
 
         /// A publisher to monitor for its first emitted element.
@@ -6537,11 +6924,13 @@ extension Publishers {
     public struct HandleEvents<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -6553,7 +6942,7 @@ extension Publishers {
         /// A closure that executes when the publisher receives a value from the upstream publisher.
         public var receiveOutput: ((Publishers.HandleEvents<Upstream>.Output) -> Void)?
 
-        /// A closure that executes when the publisher receives the completion from the upstream publisher.
+        /// A closure that executes when the upstream publisher finishes normally or terminates with an error.
         public var receiveCompletion: ((Subscribers.Completion<Publishers.HandleEvents<Upstream>.Failure>) -> Void)?
 
         /// A closure that executes when the downstream receiver cancels publishing.
@@ -6562,6 +6951,14 @@ extension Publishers {
         /// A closure that executes when the publisher receives a request for more elements.
         public var receiveRequest: ((Subscribers.Demand) -> Void)?
 
+        /// Creates a publisher that performs the specified closures when publisher events occur.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - receiveSubscription: A closure that executes when the publisher receives the subscription from the upstream publisher.
+        ///   - receiveOutput: A closure that executes when the publisher receives a value from the upstream publisher.
+        ///   - receiveCompletion: A closure that executes when the publisher receives the completion from the upstream publisher.
+        ///   - receiveCancel: A closure that executes when the downstream receiver cancels publishing.
+        ///   - receiveRequest: A closure that executes when the publisher receives a request for more elements.
         public init(upstream: Upstream, receiveSubscription: ((Subscription) -> Void)? = nil, receiveOutput: ((Publishers.HandleEvents<Upstream>.Output) -> Void)? = nil, receiveCompletion: ((Subscribers.Completion<Publishers.HandleEvents<Upstream>.Failure>) -> Void)? = nil, receiveCancel: (() -> Void)? = nil, receiveRequest: ((Subscribers.Demand) -> Void)?)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6582,11 +6979,13 @@ extension Publishers {
     public struct Concatenate<Prefix, Suffix> : Publisher where Prefix : Publisher, Suffix : Publisher, Prefix.Failure == Suffix.Failure, Prefix.Output == Suffix.Output {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its source publishers' output type.
         public typealias Output = Suffix.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its source publishers' failure type.
         public typealias Failure = Suffix.Failure
 
         /// The publisher to republish, in its entirety, before republishing elements from `suffix`.
@@ -6595,6 +6994,10 @@ extension Publishers {
         /// The publisher to republish only after `prefix` finishes.
         public let suffix: Suffix
 
+        /// Creates a publisher that emits all of one publisher’s elements before those from another publisher.
+        /// - Parameters:
+        ///   - prefix: The publisher to republish, in its entirety, before republishing elements from `suffix`.
+        ///   - suffix: The publisher to republish only after `prefix` finishes.
         public init(prefix: Prefix, suffix: Suffix)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6615,11 +7018,13 @@ extension Publishers {
     public struct Debounce<Upstream, Context> : Publisher where Upstream : Publisher, Context : Scheduler {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -6634,6 +7039,12 @@ extension Publishers {
         /// Scheduler options that customize this publisher’s delivery of elements.
         public let options: Context.SchedulerOptions?
 
+        /// Creates a publisher that publishes elements only after a specified time interval elapses between events.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - dueTime: The amount of time the publisher should wait before publishing an element.
+        ///   - scheduler: The scheduler on which this publisher delivers elements.
+        ///   - options: Scheduler options that customize this publisher’s delivery of elements.
         public init(upstream: Upstream, dueTime: Context.SchedulerTimeType.Stride, scheduler: Context, options: Context.SchedulerOptions?)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6650,20 +7061,24 @@ extension Publishers {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers {
 
-    /// A publisher that only publishes the last element of a stream, after the stream finishes.
+    /// A publisher that waits until after the stream finishes, and then publishes the last element of the stream.
     public struct Last<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
         public let upstream: Upstream
 
+        /// Creates a publisher that waits until after the stream finishes and then publishes the last element of the stream.
+        /// - Parameter upstream: The publisher from which this publisher receives elements.
         public init(upstream: Upstream)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6685,7 +7100,7 @@ extension Publishers {
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -6694,6 +7109,10 @@ extension Publishers {
         /// The closure that transforms elements from the upstream publisher.
         public let transform: (Upstream.Output) -> Output
 
+        /// Creates a publisher that transforms all elements from the upstream publisher with a provided closure.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - transform: The closure that transforms elements from the upstream publisher.
         public init(upstream: Upstream, transform: @escaping (Upstream.Output) -> Output)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6711,7 +7130,7 @@ extension Publishers {
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the Swift <doc://com.apple.documentation/documentation/Swift/Error> type.
         public typealias Failure = Error
 
         /// The publisher from which this publisher receives elements.
@@ -6720,6 +7139,10 @@ extension Publishers {
         /// The error-throwing closure that transforms elements from the upstream publisher.
         public let transform: (Upstream.Output) throws -> Output
 
+        /// Creates a publisher that transforms all elements from the upstream publisher with a provided error-throwing closure.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - transform: The error-throwing closure that transforms elements from the upstream publisher.
         public init(upstream: Upstream, transform: @escaping (Upstream.Output) throws -> Output)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6736,26 +7159,41 @@ extension Publishers {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers {
 
+    /// A publisher that terminates publishing if the upstream publisher exceeds a specified time interval without producing an element.
     public struct Timeout<Upstream, Context> : Publisher where Upstream : Publisher, Context : Scheduler {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
+        /// The publisher from which this publisher receives elements.
         public let upstream: Upstream
 
+        /// The maximum time interval the publisher can go without emitting an element, expressed in the time system of the scheduler.
         public let interval: Context.SchedulerTimeType.Stride
 
+        /// The scheduler on which to deliver events.
         public let scheduler: Context
 
+        /// Scheduler options that customize the delivery of elements.
         public let options: Context.SchedulerOptions?
 
+        /// A closure that executes if the publisher times out. The publisher sends the failure returned by this closure to the subscriber as the reason for termination.
         public let customError: (() -> Publishers.Timeout<Upstream, Context>.Failure)?
 
+        /// Creates a publisher that terminates publishing if the upstream publisher exceeds the specified time interval without producing an element.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - interval: The maximum time interval the publisher can go without emitting an element, expressed in the time system of the scheduler.
+        ///   - scheduler: The scheduler on which to deliver events.
+        ///   - options: Scheduler options that customize the delivery of elements.
+        ///   - customError: A closure that executes if the publisher times out. The publisher sends the failure returned by this closure to the subscriber as the reason for termination.
         public init(upstream: Upstream, interval: Context.SchedulerTimeType.Stride, scheduler: Context, options: Context.SchedulerOptions?, customError: (() -> Publishers.Timeout<Upstream, Context>.Failure)?)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6795,15 +7233,6 @@ extension Publishers {
         ///   - rhs: Another value to compare.
         public static func == (a: Publishers.PrefetchStrategy, b: Publishers.PrefetchStrategy) -> Bool
 
-        /// The hash value.
-        ///
-        /// Hash values are not guaranteed to be equal across different executions of
-        /// your program. Do not save hash values to use during a future execution.
-        ///
-        /// - Important: `hashValue` is deprecated as a `Hashable` requirement. To
-        ///   conform to `Hashable`, implement the `hash(into:)` requirement instead.
-        public var hashValue: Int { get }
-
         /// Hashes the essential components of this value by feeding them into the
         /// given hasher.
         ///
@@ -6818,6 +7247,15 @@ extension Publishers {
         /// - Parameter hasher: The hasher to use when combining the components
         ///   of this instance.
         public func hash(into hasher: inout Hasher)
+
+        /// The hash value.
+        ///
+        /// Hash values are not guaranteed to be equal across different executions of
+        /// your program. Do not save hash values to use during a future execution.
+        ///
+        /// - Important: `hashValue` is deprecated as a `Hashable` requirement. To
+        ///   conform to `Hashable`, implement the `hash(into:)` requirement instead.
+        public var hashValue: Int { get }
     }
 
     /// A strategy that handles exhaustion of a buffer’s capacity.
@@ -6837,11 +7275,13 @@ extension Publishers {
     public struct Buffer<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -6908,20 +7348,34 @@ extension Publishers {
 extension Publishers {
 
     /// A publisher created by applying the zip function to two upstream publishers.
+    ///
+    /// Use `Publishers.Zip` to combine the latest elements from two publishers and emit a tuple to the downstream. The returned publisher waits until both publishers have emitted an event, then delivers the oldest unconsumed event from each publisher together as a tuple to the subscriber.
+    ///
+    /// Much like a zipper or zip fastener on a piece of clothing pulls together rows of teeth to link the two sides, `Publishers.Zip` combines streams from two different publishers by linking pairs of elements from each side.
+    ///
+    /// If either upstream publisher finishes successfully or fails with an error, so too does the zipped publisher.
     public struct Zip<A, B> : Publisher where A : Publisher, B : Publisher, A.Failure == B.Failure {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher produces two-element tuples, whose members' types correspond to the types produced by the upstream publishers.
         public typealias Output = (A.Output, B.Output)
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publishers' common failure type.
         public typealias Failure = A.Failure
 
+        /// A publisher to zip.
         public let a: A
 
+        /// Another publisher to zip.
         public let b: B
 
+        /// Creates a publisher that applies the zip function to two upstream publishers.
+        /// - Parameters:
+        ///   - a: A publisher to zip.
+        ///   - b: Another publisher to zip.
         public init(_ a: A, _ b: B)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6935,22 +7389,36 @@ extension Publishers {
     }
 
     /// A publisher created by applying the zip function to three upstream publishers.
+    ///
+    /// Use a `Publishers.Zip3` to combine the latest elements from three publishers and emit a tuple to the downstream. The returned publisher waits until all three publishers have emitted an event, then delivers the oldest unconsumed event from each publisher as a tuple to the subscriber.
+    ///
+    /// If any upstream publisher finishes successfully or fails with an error, so too does the zipped publisher.
     public struct Zip3<A, B, C> : Publisher where A : Publisher, B : Publisher, C : Publisher, A.Failure == B.Failure, B.Failure == C.Failure {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher produces three-element tuples, whose members' types correspond to the types produced by the upstream publishers.
         public typealias Output = (A.Output, B.Output, C.Output)
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publishers' common failure type.
         public typealias Failure = A.Failure
 
+        /// A publisher to zip.
         public let a: A
 
+        /// A second publisher to zip.
         public let b: B
 
+        /// A third publisher to zip.
         public let c: C
 
+        /// Creates a publisher that applies the zip function to three upstream publishers.
+        /// - Parameters:
+        ///   - a: A publisher to zip.
+        ///   - b: A second publisher to zip.
+        ///   - c: A third publisher to zip.
         public init(_ a: A, _ b: B, _ c: C)
 
         /// Attaches the specified subscriber to this publisher.
@@ -6964,24 +7432,40 @@ extension Publishers {
     }
 
     /// A publisher created by applying the zip function to four upstream publishers.
+    ///
+    /// Use a `Publishers.Zip4` to combine the latest elements from four publishers and emit a tuple to the downstream. The returned publisher waits until all four publishers have emitted an event, then delivers the oldest unconsumed event from each publisher as a tuple to the subscriber.
+    ///
+    /// If any upstream publisher finishes successfully or fails with an error, so too does the zipped publisher.
     public struct Zip4<A, B, C, D> : Publisher where A : Publisher, B : Publisher, C : Publisher, D : Publisher, A.Failure == B.Failure, B.Failure == C.Failure, C.Failure == D.Failure {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher produces four-element tuples, whose members' types correspond to the types produced by the upstream publishers.
         public typealias Output = (A.Output, B.Output, C.Output, D.Output)
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publishers' common failure type.
         public typealias Failure = A.Failure
 
+        /// A publisher to zip.
         public let a: A
 
+        /// A second publisher to zip.
         public let b: B
 
+        /// A third publisher to zip.
         public let c: C
 
+        /// A fourth publisher to zip.
         public let d: D
 
+        /// Creates a publisher created by applying the zip function to four upstream publishers.
+        /// - Parameters:
+        ///   - a: A publisher to zip.
+        ///   - b: A second publisher to zip.
+        ///   - c: A third publisher to zip.
+        ///   - d: A fourth publisher to zip.
         public init(_ a: A, _ b: B, _ c: C, _ d: D)
 
         /// Attaches the specified subscriber to this publisher.
@@ -7002,14 +7486,16 @@ extension Publishers {
     public struct Output<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
-        /// The publisher that this publisher receives elements from.
+        /// The publisher from which this publisher receives its elements.
         public let upstream: Upstream
 
         /// The range of elements to publish.
@@ -7018,7 +7504,7 @@ extension Publishers {
         /// Creates a publisher that publishes elements specified by a range.
         ///
         /// - Parameters:
-        ///   - upstream: The publisher that this publisher receives elements from.
+        ///   - upstream: The publisher from which this publisher receives its elements.
         ///   - range: The range of elements to publish.
         public init(upstream: Upstream, range: CountableRange<Int>)
 
@@ -7040,14 +7526,16 @@ extension Publishers {
     public struct Catch<Upstream, NewPublisher> : Publisher where Upstream : Publisher, NewPublisher : Publisher, Upstream.Output == NewPublisher.Output {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses the replacement publisher's failure type.
         public typealias Failure = NewPublisher.Failure
 
-        /// The publisher that this publisher receives elements from.
+        /// The publisher from which this publisher receives its elements.
         public let upstream: Upstream
 
         /// A closure that accepts the upstream failure as input and returns a publisher to replace the upstream publisher.
@@ -7056,7 +7544,7 @@ extension Publishers {
         /// Creates a publisher that handles errors from an upstream publisher by replacing the failed publisher with another publisher.
         ///
         /// - Parameters:
-        ///   - upstream: The publisher that this publisher receives elements from.
+        ///   - upstream: The publisher from which this publisher receives its elements.
         ///   - handler: A closure that accepts the upstream failure as input and returns a publisher to replace the upstream publisher.
         public init(upstream: Upstream, handler: @escaping (Upstream.Failure) -> NewPublisher)
 
@@ -7076,14 +7564,16 @@ extension Publishers {
     public struct TryCatch<Upstream, NewPublisher> : Publisher where Upstream : Publisher, NewPublisher : Publisher, Upstream.Output == NewPublisher.Output {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the Swift <doc://com.apple.documentation/documentation/Swift/Error> type.
         public typealias Failure = Error
 
-        /// The publisher that this publisher receives elements from.
+        /// The publisher from which this publisher receives its elements.
         public let upstream: Upstream
 
         /// A closure that accepts the upstream failure as input and either returns a publisher to replace the upstream publisher or throws an error.
@@ -7092,7 +7582,7 @@ extension Publishers {
         /// Creates a publisher that handles errors from an upstream publisher by replacing the failed publisher with another publisher or by throwing an error.
         ///
         /// - Parameters:
-        ///   - upstream: The publisher that this publisher receives elements from.
+        ///   - upstream: The publisher from which this publisher receives its elements.
         ///   - handler: A closure that accepts the upstream failure as input and either returns a publisher to replace the upstream publisher. If this closure throws an error, the publisher terminates with the thrown error.
         public init(upstream: Upstream, handler: @escaping (Upstream.Failure) throws -> NewPublisher)
 
@@ -7114,19 +7604,29 @@ extension Publishers {
     public struct FlatMap<NewPublisher, Upstream> : Publisher where NewPublisher : Publisher, Upstream : Publisher, NewPublisher.Failure == Upstream.Failure {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses the output type declared by the new publisher.
         public typealias Output = NewPublisher.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
+        /// The publisher from which this publisher receives elements.
         public let upstream: Upstream
 
+        /// The maximum number of concurrent publisher subscriptions
         public let maxPublishers: Subscribers.Demand
 
+        /// A closure that takes an element as a parameter and returns a publisher that produces elements of that type.
         public let transform: (Upstream.Output) -> NewPublisher
 
+        /// Creates a publisher that transforms elements from an upstream publisher into a new publisher.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - maxPublishers: The maximum number of concurrent publisher subscriptions.
+        ///   - transform: A closure that takes an element as a parameter and returns a publisher that produces elements of that type.
         public init(upstream: Upstream, maxPublishers: Subscribers.Demand, transform: @escaping (Upstream.Output) -> NewPublisher)
 
         /// Attaches the specified subscriber to this publisher.
@@ -7147,14 +7647,16 @@ extension Publishers {
     public struct Delay<Upstream, Context> : Publisher where Upstream : Publisher, Context : Scheduler {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
-        /// The publisher that this publisher receives elements from.
+        /// The publisher from which this publisher receives its elements.
         public let upstream: Upstream
 
         /// The amount of time to delay.
@@ -7166,8 +7668,16 @@ extension Publishers {
         /// The scheduler to deliver the delayed events.
         public let scheduler: Context
 
+        /// Options relevant to the scheduler’s behavior.
         public let options: Context.SchedulerOptions?
 
+        /// Creates a publisher that delays delivery of elements and completion to the downstream receiver.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives its elements.
+        ///   - interval: The amount of time to delay.
+        ///   - tolerance: The allowed tolerance in delivering delayed events. The `Delay` publisher may deliver elements this much sooner or later than the interval specifies.
+        ///   - scheduler: The scheduler to deliver the delayed events.
+        ///   - options: Options relevant to the scheduler’s behavior.
         public init(upstream: Upstream, interval: Context.SchedulerTimeType.Stride, tolerance: Context.SchedulerTimeType.Stride, scheduler: Context, options: Context.SchedulerOptions? = nil)
 
         /// Attaches the specified subscriber to this publisher.
@@ -7188,11 +7698,13 @@ extension Publishers {
     public struct Drop<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -7201,6 +7713,10 @@ extension Publishers {
         /// The number of elements to drop.
         public let count: Int
 
+        /// Creates a publisher that omits a specified number of elements before republishing later elements.
+        /// - Parameters:
+        ///   - upstream: The publisher from which this publisher receives elements.
+        ///   - count: The number of elements to drop.
         public init(upstream: Upstream, count: Int)
 
         /// Attaches the specified subscriber to this publisher.
@@ -7221,16 +7737,20 @@ extension Publishers {
     public struct First<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
         public let upstream: Upstream
 
+        /// Creates a publisher that publishes the first element of a stream, then finishes.
+        /// - Parameter upstream: The publisher from which this publisher receives elements.
         public init(upstream: Upstream)
 
         /// Attaches the specified subscriber to this publisher.
@@ -7247,11 +7767,13 @@ extension Publishers {
     public struct FirstWhere<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher uses its upstream publisher's failure type.
         public typealias Failure = Upstream.Failure
 
         /// The publisher from which this publisher receives elements.
@@ -7276,11 +7798,13 @@ extension Publishers {
     public struct TryFirstWhere<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
+        ///
+        /// This publisher uses its upstream publisher's output type.
         public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
-        /// Use `Never` if this `Publisher` does not publish errors.
+        /// This publisher produces the Swift <doc://com.apple.documentation/documentation/Swift/Error> type.
         public typealias Failure = Error
 
         /// The publisher from which this publisher receives elements.
@@ -7326,7 +7850,7 @@ extension Publishers.Contains : Equatable where Upstream : Equatable {
     /// - Parameters:
     ///   - lhs: A contains publisher to compare for equality.
     ///   - rhs: Another contains publisher to compare for equality.
-    /// - Returns: `true` if the two publishers’ upstream and output properties are equal, `false` otherwise.
+    /// - Returns: `true` if the two publishers’ `upstream` and `output` properties are equal; otherwise `false`.
     public static func == (lhs: Publishers.Contains<Upstream>, rhs: Publishers.Contains<Upstream>) -> Bool
 }
 
@@ -7338,7 +7862,7 @@ extension Publishers.CombineLatest : Equatable where A : Equatable, B : Equatabl
     /// - Parameters:
     ///   - lhs: A combineLatest publisher to compare for equality.
     ///   - rhs: Another combineLatest publisher to compare for equality.
-    /// - Returns: `true` if the corresponding upstream publishers of each combineLatest publisher are equal, `false` otherwise.
+    /// - Returns: `true` if the corresponding upstream publishers of each combineLatest publisher are equal; otherwise `false`.
     public static func == (lhs: Publishers.CombineLatest<A, B>, rhs: Publishers.CombineLatest<A, B>) -> Bool
 }
 
@@ -7347,7 +7871,7 @@ extension Publishers.CombineLatest : Equatable where A : Equatable, B : Equatabl
 /// - Parameters:
 ///   - lhs: A combineLatest publisher to compare for equality.
 ///   - rhs: Another combineLatest publisher to compare for equality.
-/// - Returns: `true` if the corresponding upstream publishers of each combineLatest publisher are equal, `false` otherwise.
+/// - Returns: `true` if the corresponding upstream publishers of each combineLatest publisher are equal; otherwise `false`.
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers.CombineLatest3 : Equatable where A : Equatable, B : Equatable, C : Equatable {
 
@@ -7367,7 +7891,7 @@ extension Publishers.CombineLatest3 : Equatable where A : Equatable, B : Equatab
 /// - Parameters:
 ///   - lhs: A combineLatest publisher to compare for equality.
 ///   - rhs: Another combineLatest publisher to compare for equality.
-/// - Returns: `true` if the corresponding upstream publishers of each combineLatest publisher are equal, `false` otherwise.
+/// - Returns: `true` if the corresponding upstream publishers of each combineLatest publisher are equal; otherwise `false`.
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers.CombineLatest4 : Equatable where A : Equatable, B : Equatable, C : Equatable, D : Equatable {
 
@@ -7385,42 +7909,33 @@ extension Publishers.CombineLatest4 : Equatable where A : Equatable, B : Equatab
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers.SetFailureType : Equatable where Upstream : Equatable {
 
-    /// Returns a Boolean value indicating whether two values are equal.
-    ///
-    /// Equality is the inverse of inequality. For any values `a` and `b`,
-    /// `a == b` implies that `a != b` is `false`.
-    ///
+    /// Returns a Boolean value that indicates whether two publishers are equivalent.
     /// - Parameters:
-    ///   - lhs: A value to compare.
-    ///   - rhs: Another value to compare.
+    ///   - lhs: A `SetFailureType` publisher to compare for equality.
+    ///   - rhs: Another `SetFailureType` publisher to compare for equality.
+    /// - Returns: `true` if the publishers have equal `upstream` properties; otherwise `false`.
     public static func == (lhs: Publishers.SetFailureType<Upstream, Failure>, rhs: Publishers.SetFailureType<Upstream, Failure>) -> Bool
 }
 
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers.Collect : Equatable where Upstream : Equatable {
 
-    /// Returns a Boolean value indicating whether two values are equal.
-    ///
-    /// Equality is the inverse of inequality. For any values `a` and `b`,
-    /// `a == b` implies that `a != b` is `false`.
-    ///
+    /// Returns a Boolean value that indicates whether two publishers are equivalent.
     /// - Parameters:
-    ///   - lhs: A value to compare.
-    ///   - rhs: Another value to compare.
+    ///   - lhs: A `Collect` instance to compare.
+    ///   - rhs: Another `Collect` instance to compare.
+    /// - Returns: `true` if the corresponding `upstream` properties of each publisher are equal; otherwise `false`.
     public static func == (lhs: Publishers.Collect<Upstream>, rhs: Publishers.Collect<Upstream>) -> Bool
 }
 
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers.CollectByCount : Equatable where Upstream : Equatable {
 
-    /// Returns a Boolean value indicating whether two values are equal.
-    ///
-    /// Equality is the inverse of inequality. For any values `a` and `b`,
-    /// `a == b` implies that `a != b` is `false`.
-    ///
+    /// Returns a Boolean value that indicates whether two publishers are equivalent.
     /// - Parameters:
-    ///   - lhs: A value to compare.
-    ///   - rhs: Another value to compare.
+    ///   - lhs: A `CollectByCount` instance to compare.
+    ///   - rhs: Another `CollectByCount` instance to compare.
+    /// - Returns: `true` if the corresponding `upstream` and `count` properties of each publisher are equal; otherwise `false`.
     public static func == (lhs: Publishers.CollectByCount<Upstream>, rhs: Publishers.CollectByCount<Upstream>) -> Bool
 }
 
@@ -7458,7 +7973,7 @@ extension Publishers.Merge3 : Equatable where A : Equatable, B : Equatable, C : 
     /// - Parameters:
     ///   - lhs: A merging publisher to compare for equality.
     ///   - rhs: Another merging publisher to compare for equality.
-    /// - Returns: `true` if the two merging publishers have equal source publishers, `false` otherwise.
+    /// - Returns: `true` if the two merging publishers have equal source publishers; otherwise `false`.
     public static func == (lhs: Publishers.Merge3<A, B, C>, rhs: Publishers.Merge3<A, B, C>) -> Bool
 }
 
@@ -7470,7 +7985,7 @@ extension Publishers.Merge4 : Equatable where A : Equatable, B : Equatable, C : 
     /// - Parameters:
     ///   - lhs: A merging publisher to compare for equality.
     ///   - rhs: Another merging publisher to compare for equality.
-    /// - Returns: `true` if the two merging publishers have equal source publishers, `false` otherwise.
+    /// - Returns: `true` if the two merging publishers have equal source publishers; otherwise `false`.
     public static func == (lhs: Publishers.Merge4<A, B, C, D>, rhs: Publishers.Merge4<A, B, C, D>) -> Bool
 }
 
@@ -7482,7 +7997,7 @@ extension Publishers.Merge5 : Equatable where A : Equatable, B : Equatable, C : 
     /// - Parameters:
     ///   - lhs: A merging publisher to compare for equality.
     ///   - rhs: Another merging publisher to compare for equality.
-    /// - Returns: `true` if the two merging publishers have equal source publishers, `false` otherwise.
+    /// - Returns: `true` if the two merging publishers have equal source publishers; otherwise `false`.
     public static func == (lhs: Publishers.Merge5<A, B, C, D, E>, rhs: Publishers.Merge5<A, B, C, D, E>) -> Bool
 }
 
@@ -7494,7 +8009,7 @@ extension Publishers.Merge6 : Equatable where A : Equatable, B : Equatable, C : 
     /// - Parameters:
     ///   - lhs: A merging publisher to compare for equality.
     ///   - rhs: Another merging publisher to compare for equality.
-    /// - Returns: `true` if the two merging publishers have equal source publishers, `false` otherwise.
+    /// - Returns: `true` if the two merging publishers have equal source publishers; otherwise `false`.
     public static func == (lhs: Publishers.Merge6<A, B, C, D, E, F>, rhs: Publishers.Merge6<A, B, C, D, E, F>) -> Bool
 }
 
@@ -7506,7 +8021,7 @@ extension Publishers.Merge7 : Equatable where A : Equatable, B : Equatable, C : 
     /// - Parameters:
     ///   - lhs: A merging publisher to compare for equality.
     ///   - rhs: Another merging publisher to compare for equality.
-    /// - Returns: `true` if the two merging publishers have equal source publishers, `false` otherwise.
+    /// - Returns: `true` if the two merging publishers have equal source publishers; otherwise `false`.
     public static func == (lhs: Publishers.Merge7<A, B, C, D, E, F, G>, rhs: Publishers.Merge7<A, B, C, D, E, F, G>) -> Bool
 }
 
@@ -7518,35 +8033,29 @@ extension Publishers.Merge8 : Equatable where A : Equatable, B : Equatable, C : 
     /// - Parameters:
     ///   - lhs: A merging publisher to compare for equality.
     ///   - rhs: Another merging publisher to compare for equality.
-    /// - Returns: `true` if the two merging publishers have equal source publishers, `false` otherwise.
+    /// - Returns: `true` if the two merging publishers have equal source publishers; otherwise `false`.
     public static func == (lhs: Publishers.Merge8<A, B, C, D, E, F, G, H>, rhs: Publishers.Merge8<A, B, C, D, E, F, G, H>) -> Bool
 }
 
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers.MergeMany : Equatable where Upstream : Equatable {
 
-    /// Returns a Boolean value indicating whether two values are equal.
-    ///
-    /// Equality is the inverse of inequality. For any values `a` and `b`,
-    /// `a == b` implies that `a != b` is `false`.
-    ///
+    /// Returns a Boolean value that indicates whether two publishers are equivalent.
     /// - Parameters:
-    ///   - lhs: A value to compare.
-    ///   - rhs: Another value to compare.
+    ///   - lhs: A `MergeMany` publisher to compare for equality.
+    ///   - rhs: Another `MergeMany` publisher to compare for equality.
+    /// - Returns: `true` if the publishers have equal `publishers` properties; otherwise `false`.
     public static func == (lhs: Publishers.MergeMany<Upstream>, rhs: Publishers.MergeMany<Upstream>) -> Bool
 }
 
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers.Count : Equatable where Upstream : Equatable {
 
-    /// Returns a Boolean value indicating whether two values are equal.
-    ///
-    /// Equality is the inverse of inequality. For any values `a` and `b`,
-    /// `a == b` implies that `a != b` is `false`.
-    ///
-    /// - Parameters:
-    ///   - lhs: A value to compare.
-    ///   - rhs: Another value to compare.
+    /// Returns a Boolean value that indicates whether two publishers are equivalent.
+    ///     /// - Parameters:
+    ///   - lhs: A `Count` instance to compare.
+    ///   - rhs: Another `Count` instance to compare.
+    /// - Returns: `true` if the two publishers' `upstream` properties are equal; otherwise `false`.
     public static func == (lhs: Publishers.Count<Upstream>, rhs: Publishers.Count<Upstream>) -> Bool
 }
 
@@ -7558,21 +8067,18 @@ extension Publishers.IgnoreOutput : Equatable where Upstream : Equatable {
     /// - Parameters:
     ///   - lhs: An ignore output publisher to compare for equality.
     ///   - rhs: Another ignore output publisher to compare for equality.
-    /// - Returns: `true` if the two publishers have equal upstream publishers, `false` otherwise.
+    /// - Returns: `true` if the two publishers have equal upstream publishers; otherwise `false`.
     public static func == (lhs: Publishers.IgnoreOutput<Upstream>, rhs: Publishers.IgnoreOutput<Upstream>) -> Bool
 }
 
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers.Retry : Equatable where Upstream : Equatable {
 
-    /// Returns a Boolean value indicating whether two values are equal.
-    ///
-    /// Equality is the inverse of inequality. For any values `a` and `b`,
-    /// `a == b` implies that `a != b` is `false`.
-    ///
+    /// Returns a Boolean value that indicates whether two publishers are equivalent.
     /// - Parameters:
-    ///   - lhs: A value to compare.
-    ///   - rhs: Another value to compare.
+    ///   - lhs: A `Retry` publisher to compare for equality.
+    ///   - rhs: Another `Retry` publisher to compare for equality.
+    /// - Returns: `true` if the publishers have equal `upstream` and `retries` properties; otherwise `false`.
     public static func == (lhs: Publishers.Retry<Upstream>, rhs: Publishers.Retry<Upstream>) -> Bool
 }
 
@@ -7584,7 +8090,7 @@ extension Publishers.ReplaceEmpty : Equatable where Upstream : Equatable, Upstre
     /// - Parameters:
     ///   - lhs: A replace empty publisher to compare for equality.
     ///   - rhs: Another replace empty publisher to compare for equality.
-    /// - Returns: `true` if the two publishers have equal upstream publishers and output elements, `false` otherwise.
+    /// - Returns: `true` if the two publishers have equal upstream publishers and output elements; otherwise `false`.
     public static func == (lhs: Publishers.ReplaceEmpty<Upstream>, rhs: Publishers.ReplaceEmpty<Upstream>) -> Bool
 }
 
@@ -7596,21 +8102,18 @@ extension Publishers.ReplaceError : Equatable where Upstream : Equatable, Upstre
     /// - Parameters:
     ///   - lhs: A replace error publisher to compare for equality.
     ///   - rhs: Another replace error publisher to compare for equality.
-    /// - Returns: `true` if the two publishers have equal upstream publishers and output elements, `false` otherwise.
+    /// - Returns: `true` if the two publishers have equal upstream publishers and output elements; otherwise `false`.
     public static func == (lhs: Publishers.ReplaceError<Upstream>, rhs: Publishers.ReplaceError<Upstream>) -> Bool
 }
 
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers.DropUntilOutput : Equatable where Upstream : Equatable, Other : Equatable {
 
-    /// Returns a Boolean value indicating whether two values are equal.
-    ///
-    /// Equality is the inverse of inequality. For any values `a` and `b`,
-    /// `a == b` implies that `a != b` is `false`.
-    ///
+    /// Returns a Boolean value that indicates whether two publishers are equivalent.
     /// - Parameters:
-    ///   - lhs: A value to compare.
-    ///   - rhs: Another value to compare.
+    ///   - lhs: A `Publishers.DropUntilOutput` instance to compare for equality.
+    ///   - rhs: Another `Publishers.DropUntilOutput` instance to compare for equality.
+    /// - Returns: `true` if the publishers have equal `upstream` and `other` properties; otherwise `false`.
     public static func == (lhs: Publishers.DropUntilOutput<Upstream, Other>, rhs: Publishers.DropUntilOutput<Upstream, Other>) -> Bool
 }
 
@@ -7622,7 +8125,7 @@ extension Publishers.Concatenate : Equatable where Prefix : Equatable, Suffix : 
     /// - Parameters:
     ///   - lhs: A concatenate publisher to compare for equality.
     ///   - rhs: Another concatenate publisher to compare for equality.
-    /// - Returns: `true` if the two publishers’ prefix and suffix properties are equal, `false` otherwise.
+    /// - Returns: `true` if the two publishers’ `prefix` and `suffix` properties are equal; otherwise `false`.
     public static func == (lhs: Publishers.Concatenate<Prefix, Suffix>, rhs: Publishers.Concatenate<Prefix, Suffix>) -> Bool
 }
 
@@ -7634,7 +8137,7 @@ extension Publishers.Last : Equatable where Upstream : Equatable {
     /// - Parameters:
     ///   - lhs: A last publisher to compare for equality.
     ///   - rhs: Another last publisher to compare for equality.
-    /// - Returns: `true` if the two publishers have equal upstream publishers, `false` otherwise.
+    /// - Returns: `true` if the two publishers have equal upstream publishers; otherwise `false`.
     public static func == (lhs: Publishers.Last<Upstream>, rhs: Publishers.Last<Upstream>) -> Bool
 }
 
@@ -7795,14 +8298,11 @@ extension Publishers.Sequence where Elements : RangeReplaceableCollection {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers.Sequence : Equatable where Elements : Equatable {
 
-    /// Returns a Boolean value indicating whether two values are equal.
-    ///
-    /// Equality is the inverse of inequality. For any values `a` and `b`,
-    /// `a == b` implies that `a != b` is `false`.
-    ///
+    /// Returns a Boolean value that indicates whether two publishers are equivalent.
     /// - Parameters:
-    ///   - lhs: A value to compare.
-    ///   - rhs: Another value to compare.
+    ///   - lhs: A `Sequence` publisher to compare for equality.
+    ///   - rhs: Another `Sequewnce` publisher to compare for equality.
+    /// - Returns: `true` if the publishers have equal `sequence` properties; otherwise `false`.
     public static func == (lhs: Publishers.Sequence<Elements, Failure>, rhs: Publishers.Sequence<Elements, Failure>) -> Bool
 }
 
@@ -7814,73 +8314,53 @@ extension Publishers.Zip : Equatable where A : Equatable, B : Equatable {
     /// - Parameters:
     ///   - lhs: A zip publisher to compare for equality.
     ///   - rhs: Another zip publisher to compare for equality.
-    /// - Returns: `true` if the corresponding upstream publishers of each zip publisher are equal, `false` otherwise.
+    /// - Returns: `true` if the corresponding upstream publishers of each zip publisher are equal; otherwise `false`.
     public static func == (lhs: Publishers.Zip<A, B>, rhs: Publishers.Zip<A, B>) -> Bool
 }
 
-/// Returns a Boolean value that indicates whether two publishers are equivalent.
-///
-/// - Parameters:
-///   - lhs: A zip publisher to compare for equality.
-///   - rhs: Another zip publisher to compare for equality.
-/// - Returns: `true` if the corresponding upstream publishers of each zip publisher are equal, `false` otherwise.
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers.Zip3 : Equatable where A : Equatable, B : Equatable, C : Equatable {
 
-    /// Returns a Boolean value indicating whether two values are equal.
-    ///
-    /// Equality is the inverse of inequality. For any values `a` and `b`,
-    /// `a == b` implies that `a != b` is `false`.
+    /// Returns a Boolean value that indicates whether two publishers are equivalent.
     ///
     /// - Parameters:
-    ///   - lhs: A value to compare.
-    ///   - rhs: Another value to compare.
+    ///   - lhs: A zip publisher to compare for equality.
+    ///   - rhs: Another zip publisher to compare for equality.
+    /// - Returns: `true` if the corresponding upstream publishers of each zip publisher are equal; otherwise `false`.
     public static func == (lhs: Publishers.Zip3<A, B, C>, rhs: Publishers.Zip3<A, B, C>) -> Bool
 }
 
-/// Returns a Boolean value that indicates whether two publishers are equivalent.
-///
-/// - Parameters:
-///   - lhs: A zip publisher to compare for equality.
-///   - rhs: Another zip publisher to compare for equality.
-/// - Returns: `true` if the corresponding upstream publishers of each zip publisher are equal, `false` otherwise.
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers.Zip4 : Equatable where A : Equatable, B : Equatable, C : Equatable, D : Equatable {
 
-    /// Returns a Boolean value indicating whether two values are equal.
-    ///
-    /// Equality is the inverse of inequality. For any values `a` and `b`,
-    /// `a == b` implies that `a != b` is `false`.
+    /// Returns a Boolean value that indicates whether two publishers are equivalent.
     ///
     /// - Parameters:
-    ///   - lhs: A value to compare.
-    ///   - rhs: Another value to compare.
+    ///   - lhs: A zip publisher to compare for equality.
+    ///   - rhs: Another zip publisher to compare for equality.
+    /// - Returns: `true` if the corresponding upstream publishers of each zip publisher are equal; otherwise `false`.
     public static func == (lhs: Publishers.Zip4<A, B, C, D>, rhs: Publishers.Zip4<A, B, C, D>) -> Bool
 }
 
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers.Output : Equatable where Upstream : Equatable {
 
-    /// Returns a Boolean value indicating whether two values are equal.
-    ///
-    /// Equality is the inverse of inequality. For any values `a` and `b`,
-    /// `a == b` implies that `a != b` is `false`.
-    ///
+    /// Returns a Boolean value that indicates whether two publishers are equivalent.
     /// - Parameters:
-    ///   - lhs: A value to compare.
-    ///   - rhs: Another value to compare.
+    ///   - lhs: An `Output` publisher to compare for equality.
+    ///   - rhs: Another `Output` publisher to compare for equality.
+    /// - Returns: `true` if the publishers have equal `upstream` and `range` properties; otherwise `false`.
     public static func == (lhs: Publishers.Output<Upstream>, rhs: Publishers.Output<Upstream>) -> Bool
 }
 
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publishers.Drop : Equatable where Upstream : Equatable {
 
-    /// Returns a Boolean value that indicates whether the two publishers are equivalent.
-    ///
+    /// Returns a Boolean value that indicates whether two publishers are equivalent.
     /// - Parameters:
-    ///   - lhs: A drop publisher to compare for equality..
-    ///   - rhs: Another drop publisher to compare for equality..
-    /// - Returns: `true` if the publishers have equal upstream and count properties, `false` otherwise.
+    ///   - lhs: A drop publisher to compare for equality.
+    ///   - rhs: Another drop publisher to compare for equality.
+    /// - Returns: `true` if the publishers have equal `upstream` and `count` properties; otherwise `false`.
     public static func == (lhs: Publishers.Drop<Upstream>, rhs: Publishers.Drop<Upstream>) -> Bool
 }
 
@@ -7892,7 +8372,7 @@ extension Publishers.First : Equatable where Upstream : Equatable {
     /// - Parameters:
     ///   - lhs: A drop publisher to compare for equality.
     ///   - rhs: Another drop publisher to compare for equality.
-    /// - Returns: `true` if the two publishers have equal upstream publishers, `false` otherwise.
+    /// - Returns: `true` if the two publishers have equal upstream publishers; otherwise `false`.
     public static func == (lhs: Publishers.First<Upstream>, rhs: Publishers.First<Upstream>) -> Bool
 }
 
@@ -7961,14 +8441,6 @@ public struct Record<Output, Failure> : Publisher where Failure : Error {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Record : Codable where Output : Decodable, Output : Encodable, Failure : Decodable, Failure : Encodable {
 
-    /// Creates a new instance by decoding from the given decoder.
-    ///
-    /// This initializer throws an error if reading from the decoder fails, or
-    /// if the data read is corrupted or otherwise invalid.
-    ///
-    /// - Parameter decoder: The decoder to read data from.
-    public init(from decoder: Decoder) throws
-
     /// Encodes this value into the given encoder.
     ///
     /// If the value fails to encode anything, `encoder` will encode an empty
@@ -7979,6 +8451,14 @@ extension Record : Codable where Output : Decodable, Output : Encodable, Failure
     ///
     /// - Parameter encoder: The encoder to write data to.
     public func encode(to encoder: Encoder) throws
+
+    /// Creates a new instance by decoding from the given decoder.
+    ///
+    /// This initializer throws an error if reading from the decoder fails, or
+    /// if the data read is corrupted or otherwise invalid.
+    ///
+    /// - Parameter decoder: The decoder to read data from.
+    public init(from decoder: Decoder) throws
 }
 
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
@@ -8242,6 +8722,12 @@ extension Subscribers {
         final public func receive(completion: Subscribers.Completion<Failure>)
 
         /// Cancel the activity.
+        ///
+        /// When implementing ``Cancellable`` in support of a custom publisher, implement `cancel()` to request that your publisher stop calling its downstream subscribers. Combine doesn't require that the publisher stop immediately, but the `cancel()` call should take effect quickly. Canceling should also eliminate any strong references it currently holds.
+        ///
+        /// After you receive one call to `cancel()`, subsequent calls shouldn't do anything. Additionally, your implementation must be thread-safe, and it shouldn't block the caller.
+        ///
+        /// > Tip: Keep in mind that your `cancel()` may execute concurrently with another call to `cancel()` --- including the scenario where an ``AnyCancellable`` is deallocating --- or to ``Subscription/request(_:)``.
         final public func cancel()
     }
 }
@@ -8307,109 +8793,134 @@ extension Subscribers {
         public var description: String { get }
 
         /// Returns the result of adding two demands.
-        /// When adding any value to .unlimited, the result is .unlimited.
+        /// When adding any value to `.unlimited`, the result is `.unlimited`.
         @inlinable public static func + (lhs: Subscribers.Demand, rhs: Subscribers.Demand) -> Subscribers.Demand
 
         /// Adds two demands, and assigns the result to the first demand.
-        /// When adding any value to .unlimited, the result is .unlimited.
+        ///
+        /// When adding any value to `.unlimited`, the result is `.unlimited`.
         @inlinable public static func += (lhs: inout Subscribers.Demand, rhs: Subscribers.Demand)
 
         /// Returns the result of adding an integer to a demand.
-        /// When adding any value to .unlimited, the result is .unlimited.
+        ///
+        /// When adding any value to `.unlimited`, the result is `.unlimited`.
         @inlinable public static func + (lhs: Subscribers.Demand, rhs: Int) -> Subscribers.Demand
 
         /// Adds an integer to a demand, and assigns the result to the demand.
-        /// When adding any value to .unlimited, the result is .unlimited.
+        ///
+        /// When adding any value to `.unlimited`, the result is `.unlimited`.
         @inlinable public static func += (lhs: inout Subscribers.Demand, rhs: Int)
 
         /// Returns the result of multiplying a demand by an integer.
-        /// When multiplying any value by .unlimited, the result is .unlimited. If
-        /// the multiplication operation overflows, the result is .unlimited.
+        ///
+        /// When multiplying any value by `.unlimited`, the result is `.unlimited`. If
+        /// the multiplication operation overflows, the result is `.unlimited`.
         public static func * (lhs: Subscribers.Demand, rhs: Int) -> Subscribers.Demand
 
         /// Multiplies a demand by an integer, and assigns the result to the demand.
-        /// When multiplying any value by .unlimited, the result is .unlimited. If
-        /// the multiplication operation overflows, the result is .unlimited.
+        ///
+        /// When multiplying any value by `.unlimited`, the result is `.unlimited`. If
+        /// the multiplication operation overflows, the result is `.unlimited`.
         @inlinable public static func *= (lhs: inout Subscribers.Demand, rhs: Int)
 
         /// Returns the result of subtracting one demand from another.
-        /// When subtracting any value (including .unlimited) from .unlimited, the result is still .unlimited. Subtracting unlimited from any value (except unlimited) results in .max(0). A negative demand is not possible; any operation that would result in a negative value is clamped to .max(0).
+        ///
+        /// When subtracting any value (including `.unlimited`) from `.unlimited`, the result is still `.unlimited`. Subtracting `.unlimited` from any value (except `.unlimited`) results in `.max(0)`. A negative demand is impossible; when an operation would result in a negative value, Combine adjusts the value to `.max(0)`.
         @inlinable public static func - (lhs: Subscribers.Demand, rhs: Subscribers.Demand) -> Subscribers.Demand
 
         /// Subtracts one demand from another, and assigns the result to the first demand.
-        /// When subtracting any value (including .unlimited) from .unlimited, the result is still .unlimited. Subtracting unlimited from any value (except unlimited) results in .max(0). A negative demand is not possible; any operation that would result in a negative value is clamped to .max(0).
+        ///
+        /// When subtracting any value (including `.unlimited`) from `.unlimited`, the result is still `.unlimited`. Subtracting `.unlimited` from any value (except `.unlimited`) results in `.max(0)`. A negative demand is impossible; when an operation would result in a negative value, Combine adjusts the value to `.max(0)`.
         @inlinable public static func -= (lhs: inout Subscribers.Demand, rhs: Subscribers.Demand)
 
         /// Returns the result of subtracting an integer from a demand.
-        /// When subtracting any value from .unlimited, the result is still .unlimited. A negative demand is possible, but be aware that it is not usable when requesting values in a subscription.
+        ///
+        /// When subtracting any value from `.unlimited`, the result is still `.unlimited`. A negative demand is possible, but be aware that it isn't usable when requesting values in a subscription.
         @inlinable public static func - (lhs: Subscribers.Demand, rhs: Int) -> Subscribers.Demand
 
         /// Subtracts an integer from a demand, and assigns the result to the demand.
-        /// When subtracting any value from .unlimited, the result is still .unlimited. A negative demand is not possible; any operation that would result in a negative value is clamped to .max(0)
+        ///
+        /// When subtracting any value from `.unlimited`, the result is still `.unlimited`. A negative demand is impossible; when an operation would result in a negative value, Combine adjusts the value to `.max(0)`.
         @inlinable public static func -= (lhs: inout Subscribers.Demand, rhs: Int)
 
         /// Returns a Boolean that indicates whether the demand requests more than the given number of elements.
-        /// If lhs is .unlimited, then the result is always true. Otherwise, the operator compares the demand’s max value to rhs.
+        ///
+        /// If `lhs` is `.unlimited`, then the result is always `true`. Otherwise, the operator compares the demand’s `max` value to `rhs`.
         @inlinable public static func > (lhs: Subscribers.Demand, rhs: Int) -> Bool
 
         /// Returns a Boolean that indicates whether the first demand requests more or the same number of elements as the second.
-        /// If lhs is .unlimited, then the result is always true. Otherwise, the operator compares the demand’s max value to rhs.
+        ///
+        /// If `lhs` is `.unlimited`, then the result is always `true`. Otherwise, the operator compares the demand’s `max` value to `rhs`.
         @inlinable public static func >= (lhs: Subscribers.Demand, rhs: Int) -> Bool
 
         /// Returns a Boolean that indicates a given number of elements is greater than the maximum specified by the demand.
-        /// If rhs is .unlimited, then the result is always false. Otherwise, the operator compares the demand’s max value to lhs.
+        ///
+        /// If `rhs` is `.unlimited`, then the result is always `false`. Otherwise, the operator compares the demand’s `max` value to `lhs`.
         @inlinable public static func > (lhs: Int, rhs: Subscribers.Demand) -> Bool
 
         /// Returns a Boolean that indicates a given number of elements is greater than or equal to the maximum specified by the demand.
-        /// If rhs is .unlimited, then the result is always false. Otherwise, the operator compares the demand’s max value to lhs.
+        ///
+        /// If `rhs` is `.unlimited`, then the result is always `false`. Otherwise, the operator compares the demand’s `max` value to `lhs`.
         @inlinable public static func >= (lhs: Int, rhs: Subscribers.Demand) -> Bool
 
         /// Returns a Boolean that indicates whether the demand requests fewer than the given number of elements.
-        /// If lhs is unlimited, then the result is always false. Otherwise, the operator compares the demand’s max value to rhs.
+        ///
+        /// If `lhs` is `.unlimited`, then the result is always `false`. Otherwise, the operator compares the demand’s `max` value to `rhs`.
         @inlinable public static func < (lhs: Subscribers.Demand, rhs: Int) -> Bool
 
         /// Returns a Boolean that indicates a given number of elements is less than the maximum specified by the demand.
-        /// If rhs is unlimited, then the result is always true. Otherwise, the operator compares the demand’s max value to lhs.
+        ///
+        /// If `rhs` is `.unlimited`, then the result is always `true`. Otherwise, the operator compares the demand’s `max` value to `lhs`.
         @inlinable public static func < (lhs: Int, rhs: Subscribers.Demand) -> Bool
 
         /// Returns a Boolean that indicates whether the demand requests fewer or the same number of elements as the given integer.
-        /// If lhs is unlimited, then the result is always false. Otherwise, the operator compares the demand’s max value to rhs.
+        ///
+        /// If `lhs` is `.unlimited`, then the result is always `false`. Otherwise, the operator compares the demand’s `max` value to `rhs`.
         @inlinable public static func <= (lhs: Subscribers.Demand, rhs: Int) -> Bool
 
         /// Returns a Boolean value that indicates a given number of elements is less than or equal the maximum specified by the demand.
-        /// If rhs is unlimited, then the result is always true. Otherwise, the operator compares the demand’s max value to lhs.
+        ///
+        /// If `rhs` is `.unlimited`, then the result is always `true`. Otherwise, the operator compares the demand’s `max` value to `lhs`.
         @inlinable public static func <= (lhs: Int, rhs: Subscribers.Demand) -> Bool
 
         /// Returns a Boolean that indicates whether the first demand requests fewer elements than the second.
-        /// If both sides are unlimited, the result is always false. If lhs is unlimited, then the result is always false. If rhs is unlimited then the result is always true. Otherwise, this operator compares the demands’ max values.
+        ///
+        /// If both sides are `.unlimited`, the result is always `false`. If `lhs` is `.unlimited`, then the result is always `false`. If `rhs` is `.unlimited` then the result is always `true`. Otherwise, this operator compares the demands’ `max` values.
         @inlinable public static func < (lhs: Subscribers.Demand, rhs: Subscribers.Demand) -> Bool
 
         /// Returns a Boolean value that indicates whether the first demand requests fewer or the same number of elements as the second.
-        /// If both sides are unlimited, the result is always true. If lhs is unlimited, then the result is always false. If rhs is unlimited then the result is always true. Otherwise, this operator compares the demands’ max values.
+        ///
+        /// If both sides are `.unlimited`, the result is always `true`. If `lhs` is `.unlimited`, then the result is always `false`. If `rhs` is unlimited then the result is always `true`. Otherwise, this operator compares the demands’ `max` values.
         @inlinable public static func <= (lhs: Subscribers.Demand, rhs: Subscribers.Demand) -> Bool
 
         /// Returns a Boolean that indicates whether the first demand requests more or the same number of elements as the second.
-        /// If both sides are unlimited, the result is always true. If lhs is unlimited, then the result is always true. If rhs is unlimited then the result is always false. Otherwise, this operator compares the demands’ max values.
+        ///
+        /// If both sides are `.unlimited`, the result is always `true`. If `lhs` is `.unlimited`, then the result is always `true`. If `rhs` is `.unlimited` then the result is always `false`. Otherwise, this operator compares the demands’ `max` values.
         @inlinable public static func >= (lhs: Subscribers.Demand, rhs: Subscribers.Demand) -> Bool
 
         /// Returns a Boolean that indicates whether the first demand requests more elements than the second.
-        /// If both sides are .unlimited, the result is always false. If lhs is .unlimited, then the result is always true. If rhs is .unlimited then the result is always false. Otherwise, this operator compares the demands’ max values.
+        ///
+        /// If both sides are `.unlimited`, the result is always `false`. If `lhs` is `.unlimited`, then the result is always `true`. If `rhs` is `.unlimited` then the result is always `false`. Otherwise, this operator compares the demands’ `max` values.
         @inlinable public static func > (lhs: Subscribers.Demand, rhs: Subscribers.Demand) -> Bool
 
-        /// Returns a Boolean value indicating whether a demand requests the given number of elements.
-        /// An .unlimited demand doesn’t match any integer.
+        /// Returns a Boolean value that indicates whether a demand requests the given number of elements.
+        ///
+        /// An `.unlimited` demand doesn’t match any integer.
         @inlinable public static func == (lhs: Subscribers.Demand, rhs: Int) -> Bool
 
-        /// Returns a Boolean value indicating whether a demand is not equal to an integer.
-        /// The .unlimited value isn’t equal to any integer.
+        /// Returns a Boolean value that indicates whether a demand isn't equal to an integer.
+        ///
+        /// The `.unlimited` value isn’t equal to any integer.
         @inlinable public static func != (lhs: Subscribers.Demand, rhs: Int) -> Bool
 
-        /// Returns a Boolean value indicating whether a given number of elements matches the request of a given demand.
-        /// An .unlimited demand doesn’t match any integer.
+        /// Returns a Boolean value that indicates whether a given number of elements matches the request of a given demand.
+        ///
+        /// An `.unlimited` demand doesn’t match any integer.
         @inlinable public static func == (lhs: Int, rhs: Subscribers.Demand) -> Bool
 
-        /// Returns a Boolean value indicating whether an integer is not equal to a demand.
-        /// The .unlimited value isn’t equal to any integer.
+        /// Returns a Boolean value that indicates whether an integer is unequal to a demand.
+        ///
+        /// The `.unlimited` value isn’t equal to any integer.
         @inlinable public static func != (lhs: Int, rhs: Subscribers.Demand) -> Bool
 
         /// The number of requested values.
@@ -8437,15 +8948,6 @@ extension Subscribers {
         ///   - rhs: Another value to compare.
         public static func == (a: Subscribers.Demand, b: Subscribers.Demand) -> Bool
 
-        /// The hash value.
-        ///
-        /// Hash values are not guaranteed to be equal across different executions of
-        /// your program. Do not save hash values to use during a future execution.
-        ///
-        /// - Important: `hashValue` is deprecated as a `Hashable` requirement. To
-        ///   conform to `Hashable`, implement the `hash(into:)` requirement instead.
-        public var hashValue: Int { get }
-
         /// Hashes the essential components of this value by feeding them into the
         /// given hasher.
         ///
@@ -8460,6 +8962,15 @@ extension Subscribers {
         /// - Parameter hasher: The hasher to use when combining the components
         ///   of this instance.
         public func hash(into hasher: inout Hasher)
+
+        /// The hash value.
+        ///
+        /// Hash values are not guaranteed to be equal across different executions of
+        /// your program. Do not save hash values to use during a future execution.
+        ///
+        /// - Important: `hashValue` is deprecated as a `Hashable` requirement. To
+        ///   conform to `Hashable`, implement the `hash(into:)` requirement instead.
+        public var hashValue: Int { get }
     }
 }
 
@@ -8539,15 +9050,6 @@ extension Subscribers.Completion : Equatable where Failure : Equatable {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Subscribers.Completion : Hashable where Failure : Hashable {
 
-    /// The hash value.
-    ///
-    /// Hash values are not guaranteed to be equal across different executions of
-    /// your program. Do not save hash values to use during a future execution.
-    ///
-    /// - Important: `hashValue` is deprecated as a `Hashable` requirement. To
-    ///   conform to `Hashable`, implement the `hash(into:)` requirement instead.
-    public var hashValue: Int { get }
-
     /// Hashes the essential components of this value by feeding them into the
     /// given hasher.
     ///
@@ -8562,6 +9064,15 @@ extension Subscribers.Completion : Hashable where Failure : Hashable {
     /// - Parameter hasher: The hasher to use when combining the components
     ///   of this instance.
     public func hash(into hasher: inout Hasher)
+
+    /// The hash value.
+    ///
+    /// Hash values are not guaranteed to be equal across different executions of
+    /// your program. Do not save hash values to use during a future execution.
+    ///
+    /// - Important: `hashValue` is deprecated as a `Hashable` requirement. To
+    ///   conform to `Hashable`, implement the `hash(into:)` requirement instead.
+    public var hashValue: Int { get }
 }
 
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
@@ -8683,14 +9194,35 @@ extension Optional {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Result {
 
+    /// A Combine publisher that publishes this instance’s result to each subscriber exactly once, or fails immediately if the result indicates failure.
+    ///
+    /// In the following example, `goodResult` provides a successful result with the integer value `1`. A sink subscriber connected to the result's publisher receives the output `1`, followed by a normal completion (``Combine/Subscribers/Completion/finished``).
+    ///
+    ///      let goodResult: Result<Int, MyError> = .success(1)
+    ///      goodResult.publisher
+    ///          .sink(receiveCompletion: { print("goodResult done: \($0)")},
+    ///                receiveValue: { print("goodResult value: \($0)")} )
+    ///      // Prints:
+    ///      // goodResult value: 1
+    ///      // goodResult done: finished
+    ///
+    /// In contrast with the ``Combine/Just`` publisher, which always publishes a single value, this publisher might not send any values and instead terminate with an error, if the result is <doc://com.apple.documentation/documentation/Swift/Result/failure>. In the next example, `badResult` is a failure result that wraps a custom error. A sink subscriber connected to this result's publisher immediately receives a termination (``Combine/Subscribers/Completion/failure(_:)``).
+    ///
+    ///      struct MyError: Error, CustomDebugStringConvertible {
+    ///          var debugDescription: String = "MyError"
+    ///      }
+    ///      let badResult: Result<Int, MyError> = .failure(MyError())
+    ///      badResult.publisher
+    ///          .sink(receiveCompletion: { print("badResult done: \($0)")},
+    ///                receiveValue: { print("badResult value: \($0)")} )
+    ///      // Prints:
+    ///      // badResult done: failure(MyError)
+    ///
     public var publisher: Result<Success, Failure>.Publisher { get }
 
-    /// A publisher that publishes an output to each subscriber exactly once then finishes, or fails immediately without producing any elements.
+    /// The type of a Combine publisher that publishes this instance’s result to each subscriber exactly once, or fails immediately if the result indicates failure.
     ///
-    /// If `result` is `.success`, then `Once` waits until it receives a request for at least 1 value before sending the output. If `result` is `.failure`, then `Once` sends the failure immediately upon subscription.
-    ///
-    /// In contrast with `Just`, a `Once` publisher can terminate with an error instead of sending a value.
-    /// In contrast with `Optional`, a `Once` publisher always sends one value (unless it terminates with an error).
+    /// If the result is <doc://com.apple.documentation/documentation/Swift/Result/success>, then the publisher waits until it receives a request for at least one value, then sends the output to all subscribers and finishes normally. If the result is <doc://com.apple.documentation/documentation/Swift/Result/failure>, then the publisher sends the failure immediately upon subscription. This latter behavior is a contrast with ``Combine/Just``, which always publishes a single value.
     @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
     public struct Publisher : Publisher {
 
@@ -8702,7 +9234,7 @@ extension Result {
 
         /// Creates a publisher that delivers the specified result.
         ///
-        /// If the result is `.success`, the `Once` publisher sends the specified output to all subscribers and finishes normally. If the result is `.failure`, then the publisher fails immediately with the specified error.
+        /// If `result` is <doc://com.apple.documentation/documentation/Swift/Result/success>, then the publisher waits until it receives a request for at least one value, then sends the output to all subscribers and finishes normally. If `result` is <doc://com.apple.documentation/documentation/Swift/Result/failure>, then the publisher sends the failure immediately upon subscription.
         /// - Parameter result: The result to deliver to each subscriber.
         public init(_ result: Result<Result<Success, Failure>.Publisher.Output, Failure>)
 
