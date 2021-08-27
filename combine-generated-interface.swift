@@ -1,4 +1,5 @@
 import Darwin
+import _Concurrency
 
 /// A type-erasing cancellable object that executes a provided closure when canceled.
 ///
@@ -201,6 +202,70 @@ extension AnyPublisher : Publisher {
     ///
     /// - Parameter completion: A ``Subscribers/Completion`` case indicating whether publishing completed normally or with an error.
     @inlinable public func receive(completion: Subscribers.Completion<Failure>)
+}
+
+@available(macOS 12.0, iOS 15.0, tvOS 15.0, watchOS 8.0, *)
+public struct AsyncPublisher<P> : AsyncSequence where P : Publisher, P.Failure == Never {
+
+    /// The type of element produced by this asynchronous sequence.
+    public typealias Element = P.Output
+
+    public struct Iterator : AsyncIteratorProtocol {
+
+        /// Asynchronously advances to the next element and returns it, or ends the
+        /// sequence if there is no next element.
+        /// 
+        /// - Returns: The next element, if it exists, or `nil` to signal the end of
+        ///   the sequence.
+        public mutating func next() async -> P.Output?
+
+        public typealias Element = P.Output
+    }
+
+    public init(_ publisher: P)
+
+    /// Creates the asynchronous iterator that produces elements of this
+    /// asynchronous sequence.
+    ///
+    /// - Returns: An instance of the `AsyncIterator` type used to produce
+    /// elements of the asynchronous sequence.
+    public func makeAsyncIterator() -> AsyncPublisher<P>.Iterator
+
+    /// The type of asynchronous iterator that produces elements of this
+    /// asynchronous sequence.
+    public typealias AsyncIterator = AsyncPublisher<P>.Iterator
+}
+
+@available(macOS 12.0, iOS 15.0, tvOS 15.0, watchOS 8.0, *)
+public struct AsyncThrowingPublisher<P> : AsyncSequence where P : Publisher {
+
+    /// The type of element produced by this asynchronous sequence.
+    public typealias Element = P.Output
+
+    public struct Iterator : AsyncIteratorProtocol {
+
+        /// Asynchronously advances to the next element and returns it, or ends the
+        /// sequence if there is no next element.
+        /// 
+        /// - Returns: The next element, if it exists, or `nil` to signal the end of
+        ///   the sequence.
+        public mutating func next() async throws -> P.Output?
+
+        public typealias Element = P.Output
+    }
+
+    public init(_ publisher: P)
+
+    /// Creates the asynchronous iterator that produces elements of this
+    /// asynchronous sequence.
+    ///
+    /// - Returns: An instance of the `AsyncIterator` type used to produce
+    /// elements of the asynchronous sequence.
+    public func makeAsyncIterator() -> AsyncThrowingPublisher<P>.Iterator
+
+    /// The type of asynchronous iterator that produces elements of this
+    /// asynchronous sequence.
+    public typealias AsyncIterator = AsyncThrowingPublisher<P>.Iterator
 }
 
 /// A protocol indicating that an activity or action supports cancellation.
@@ -522,6 +587,18 @@ final public class Future<Output, Failure> : Publisher where Failure : Error {
     ///
     /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
     final public func receive<S>(subscriber: S) where Output == S.Input, Failure == S.Failure, S : Subscriber
+}
+
+extension Future where Failure == Never {
+
+    @available(macOS 12.0, iOS 15.0, tvOS 15.0, watchOS 8.0, *)
+    final public var value: Output { get async }
+}
+
+extension Future {
+
+    @available(macOS 12.0, iOS 15.0, tvOS 15.0, watchOS 8.0, *)
+    final public var value: Output { get async throws }
 }
 
 /// A scheduler for performing synchronous actions.
@@ -2395,6 +2472,18 @@ extension Publisher {
     ///   - keyPath2: The key path of a third property on `Output`.
     /// - Returns: A publisher that publishes the values of three key paths as a tuple.
     public func map<T0, T1, T2>(_ keyPath0: KeyPath<Self.Output, T0>, _ keyPath1: KeyPath<Self.Output, T1>, _ keyPath2: KeyPath<Self.Output, T2>) -> Publishers.MapKeyPath3<Self, T0, T1, T2>
+}
+
+extension Publisher where Self.Failure == Never {
+
+    @available(macOS 12.0, iOS 15.0, tvOS 15.0, watchOS 8.0, *)
+    public var values: AsyncPublisher<Self> { get }
+}
+
+extension Publisher {
+
+    @available(macOS 12.0, iOS 15.0, tvOS 15.0, watchOS 8.0, *)
+    public var values: AsyncThrowingPublisher<Self> { get }
 }
 
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
@@ -9100,6 +9189,14 @@ extension Subscribers.Completion : Decodable where Failure : Decodable {
     ///
     /// - Parameter decoder: The decoder to read data from.
     public init(from decoder: Decoder) throws
+}
+
+@available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+extension Subscribers.Completion : Sendable {
+}
+
+@available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+extension Subscribers.Demand : Sendable {
 }
 
 /// A protocol representing the connection of a subscriber to a publisher.
