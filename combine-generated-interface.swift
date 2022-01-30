@@ -57,6 +57,7 @@ final public class AnyCancellable : Cancellable, Hashable {
     final public var hashValue: Int { get }
 }
 
+@available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension AnyCancellable {
 
     /// Stores this type-erasing cancellable instance in the specified collection.
@@ -68,6 +69,7 @@ extension AnyCancellable {
     /// Stores this type-erasing cancellable instance in the specified set.
     ///
     /// - Parameter set: The set in which to store this ``AnyCancellable``.
+    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
     final public func store(in set: inout Set<AnyCancellable>)
 }
 
@@ -284,6 +286,7 @@ public protocol Cancellable {
     func cancel()
 }
 
+@available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Cancellable {
 
     /// Stores this cancellable instance in the specified collection.
@@ -295,6 +298,7 @@ extension Cancellable {
     /// Stores this cancellable instance in the specified set.
     ///
     /// - Parameter set: The set in which to store this ``Cancellable``.
+    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
     public func store(in set: inout Set<AnyCancellable>)
 }
 
@@ -589,12 +593,14 @@ final public class Future<Output, Failure> : Publisher where Failure : Error {
     final public func receive<S>(subscriber: S) where Output == S.Input, Failure == S.Failure, S : Subscriber
 }
 
+@available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Future where Failure == Never {
 
     @available(macOS 12.0, iOS 15.0, tvOS 15.0, watchOS 8.0, *)
     final public var value: Output { get async }
 }
 
+@available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Future {
 
     @available(macOS 12.0, iOS 15.0, tvOS 15.0, watchOS 8.0, *)
@@ -2219,6 +2225,7 @@ extension Publisher {
     public func subscribe<S>(_ subscriber: S) where S : Subscriber, Self.Failure == S.Failure, Self.Output == S.Input
 }
 
+@available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publisher where Self.Failure == Never {
 
     /// Republishes elements received from a publisher, by assigning them to a property marked as a publisher.
@@ -2474,12 +2481,14 @@ extension Publisher {
     public func map<T0, T1, T2>(_ keyPath0: KeyPath<Self.Output, T0>, _ keyPath1: KeyPath<Self.Output, T1>, _ keyPath2: KeyPath<Self.Output, T2>) -> Publishers.MapKeyPath3<Self, T0, T1, T2>
 }
 
+@available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publisher where Self.Failure == Never {
 
     @available(macOS 12.0, iOS 15.0, tvOS 15.0, watchOS 8.0, *)
     public var values: AsyncPublisher<Self> { get }
 }
 
+@available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publisher {
 
     @available(macOS 12.0, iOS 15.0, tvOS 15.0, watchOS 8.0, *)
