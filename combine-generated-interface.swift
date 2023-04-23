@@ -1,5 +1,6 @@
 import Darwin
 import _Concurrency
+import _StringProcessing
 
 /// A type-erasing cancellable object that executes a provided closure when canceled.
 ///
@@ -206,31 +207,36 @@ extension AnyPublisher : Publisher {
     @inlinable public func receive(completion: Subscribers.Completion<Failure>)
 }
 
+/// A publisher that exposes its elements as an asynchronous sequence.
+///
+/// `AsyncPublisher` conforms to <doc://com.apple.documentation/documentation/Swift/AsyncSequence>, which allows callers to receive values with the `for`-`await`-`in` syntax, rather than attaching a ``Subscriber``.
+///
+/// Use the ``Combine/Publisher/values-1dm9r`` property of the ``Combine/Publisher`` protocol to wrap an existing publisher with an instance of this type.
 @available(macOS 12.0, iOS 15.0, tvOS 15.0, watchOS 8.0, *)
 public struct AsyncPublisher<P> : AsyncSequence where P : Publisher, P.Failure == Never {
 
     /// The type of element produced by this asynchronous sequence.
     public typealias Element = P.Output
 
+    /// The iterator that produces elements of the asynchronous publisher sequence.
     public struct Iterator : AsyncIteratorProtocol {
 
-        /// Asynchronously advances to the next element and returns it, or ends the
-        /// sequence if there is no next element.
-        /// 
-        /// - Returns: The next element, if it exists, or `nil` to signal the end of
-        ///   the sequence.
+        /// Produces the next element in the prefix sequence.
+        ///
+        /// - Returns: The next published element, or nil if the publisher finishes normally.
         public mutating func next() async -> P.Output?
 
         public typealias Element = P.Output
     }
 
+    /// Creates a publisher that exposes elements received from an upstream publisher as an asynchronous sequence.
+    ///
+    /// - Parameter publisher: An upstream publisher. The asynchronous publisher converts elements received from this publisher into an asynchronous sequence.
     public init(_ publisher: P)
 
-    /// Creates the asynchronous iterator that produces elements of this
-    /// asynchronous sequence.
+    /// Creates the asynchronous iterator that produces elements of this asynchronous sequence.
     ///
-    /// - Returns: An instance of the `AsyncIterator` type used to produce
-    /// elements of the asynchronous sequence.
+    /// - Returns: An instance of the `AsyncIterator` type used to produce elements of the asynchronous sequence.
     public func makeAsyncIterator() -> AsyncPublisher<P>.Iterator
 
     /// The type of asynchronous iterator that produces elements of this
@@ -238,31 +244,35 @@ public struct AsyncPublisher<P> : AsyncSequence where P : Publisher, P.Failure =
     public typealias AsyncIterator = AsyncPublisher<P>.Iterator
 }
 
+/// A publisher that exposes its elements as a throwing asynchronous sequence.
+///
+/// `AsyncThrowingPublisher` conforms to <doc://com.apple.documentation/documentation/Swift/AsyncSequence>, which allows callers to receive values with the `for`-`await`-`in` syntax, rather than attaching a ``Subscriber``. If the upstream publisher terminates with an error, `AsyncThrowingPublisher` throws the error to the awaiting caller.
+///
+/// Use the ``Combine/Publisher/values-v7nz`` property of the ``Combine/Publisher`` protocol to wrap an existing publisher with an instance of this type.
 @available(macOS 12.0, iOS 15.0, tvOS 15.0, watchOS 8.0, *)
 public struct AsyncThrowingPublisher<P> : AsyncSequence where P : Publisher {
 
     /// The type of element produced by this asynchronous sequence.
     public typealias Element = P.Output
 
+    /// The iterator that produces elements of the asynchronous publisher sequence.
     public struct Iterator : AsyncIteratorProtocol {
 
-        /// Asynchronously advances to the next element and returns it, or ends the
-        /// sequence if there is no next element.
-        /// 
-        /// - Returns: The next element, if it exists, or `nil` to signal the end of
-        ///   the sequence.
+        /// Produces the next element in the prefix sequence.
+        ///
+        /// - Returns: The next published element, or nil if the publisher finishes normally. If the publisher terminates with an error, the call point receives the error as a `throw`.
         public mutating func next() async throws -> P.Output?
 
         public typealias Element = P.Output
     }
 
+    /// Creates a publisher that exposes elements received from an upstream publisher as a throwing asynchronous sequence.
+    /// - Parameter publisher: An upstream publisher. The asynchronous publisher converts elements received from this publisher into an asynchronous sequence.
     public init(_ publisher: P)
 
-    /// Creates the asynchronous iterator that produces elements of this
-    /// asynchronous sequence.
+    /// Creates the asynchronous iterator that produces elements of this asynchronous sequence.
     ///
-    /// - Returns: An instance of the `AsyncIterator` type used to produce
-    /// elements of the asynchronous sequence.
+    /// - Returns: An instance of the `AsyncIterator` type used to produce elements of the asynchronous sequence.
     public func makeAsyncIterator() -> AsyncThrowingPublisher<P>.Iterator
 
     /// The type of asynchronous iterator that produces elements of this
@@ -363,7 +373,7 @@ public struct CombineIdentifier : Hashable, CustomStringConvertible {
 ///
 /// Use ``Publisher/makeConnectable()`` to create a ``ConnectablePublisher`` from any publisher whose failure type is <doc://com.apple.documentation/documentation/Swift/Never>.
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
-public protocol ConnectablePublisher : Publisher {
+public protocol ConnectablePublisher<Output, Failure> : Publisher {
 
     /// Connects to the publisher, allowing it to produce elements, and returns an instance with which to cancel publishing.
     ///
@@ -570,6 +580,52 @@ extension Fail : Equatable where Failure : Equatable {
 }
 
 /// A publisher that eventually produces a single value and then finishes or fails.
+///
+/// Use a future to perform some work and then asynchronously publish a single element. You initialize the future with a closure that takes a ``Combine/Future/Promise``; the closure calls the promise with a <doc://com.apple.documentation/documentation/Swift/Result> that indicates either success or failure. In the success case, the future's downstream subscriber receives the element prior to the publishing stream finishing normally. If the result is an error, publishing terminates with that error.
+///
+/// The following example shows a method that uses a future to asynchronously publish a random number after a brief delay:
+///
+///     func generateAsyncRandomNumberFromFuture() -> Future <Int, Never> {
+///         return Future() { promise in
+///             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+///                 let number = Int.random(in: 1...10)
+///                 promise(Result.success(number))
+///             }
+///         }
+///     }
+///
+/// To receive the published value, you use any Combine subscriber, such as a ``Combine/Subscribers/Sink``, like this:
+///
+///     cancellable = generateAsyncRandomNumberFromFuture()
+///         .sink { number in print("Got random number \(number).") }
+///
+/// ### Integrating with Swift Concurrency
+///
+/// To integrate with the `async`-`await` syntax in Swift 5.5, `Future` can provide its value to an awaiting caller. This is particularly useful because unlike other types that conform to ``Publisher`` and potentially publish many elements, a `Future` only publishes one element (or fails). By using the ``Combine/Future/value-9iwjz`` property, the above call point looks like this:
+///
+///     let number = await generateAsyncRandomNumberFromFuture().value
+///     print("Got random number \(number).")
+///
+/// ### Alternatives to Futures
+///
+/// The `async`-`await` syntax in Swift can also replace the use of a future entirely, for the case where you want to perform some operation after an asynchronous task completes.
+///
+/// You do this with the function <doc://com.apple.documentation/documentation/Swift/3814988-withCheckedContinuation> and its throwing equivalent, <doc://com.apple.documentation/documentation/Swift/3814989-withCheckedThrowingContinuation>. The following example performs the same asynchronous random number generation as the `Future` example above, but as an `async` method:
+///
+///     func generateAsyncRandomNumberFromContinuation() async -> Int {
+///         return await withCheckedContinuation { continuation in
+///             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+///                 let number = Int.random(in: 1...10)
+///                 continuation.resume(returning: number)
+///             }
+///         }
+///     }
+///
+/// The call point for this method doesn't use a closure like the future's sink subscriber does; it simply awaits and assigns the result:
+///
+///     let asyncRandom = await generateAsyncRandomNumberFromContinuation()
+///
+/// For more information on continuations, see the <doc://com.apple.documentation/documentation/swift/swift_standard_library/concurrency> topic in the Swift standard library.
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 final public class Future<Output, Failure> : Publisher where Failure : Error {
 
@@ -596,6 +652,9 @@ final public class Future<Output, Failure> : Publisher where Failure : Error {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Future where Failure == Never {
 
+    /// The published value of the future, delivered asynchronously.
+    ///
+    /// This property subscribes to the `Future` and delivers the value asynchronously when the `Future` publishes it. Use this property when you want to use the `async`-`await` syntax with a `Future`.
     @available(macOS 12.0, iOS 15.0, tvOS 15.0, watchOS 8.0, *)
     final public var value: Output { get async }
 }
@@ -603,6 +662,9 @@ extension Future where Failure == Never {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Future {
 
+    /// The published value of the future or an error, delivered asynchronously.
+    ///
+    /// This property subscribes to the `Future` and delivers the value asynchronously when the `Future` publishes it. If the `Future` terminates with an error, the awaiting caller receives the error instead. Use this property when you want to the `async`-`await` syntax with a `Future` whose ``Publisher/Failure`` type is not <doc://com.apple.documentation/documentation/Swift/Never>.
     @available(macOS 12.0, iOS 15.0, tvOS 15.0, watchOS 8.0, *)
     final public var value: Output { get async throws }
 }
@@ -860,7 +922,7 @@ public struct Just<Output> : Publisher {
     /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
     ///
     /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-    public func receive<S>(subscriber: S) where Output == S.Input, S : Subscriber, S.Failure == Just<Output>.Failure
+    public func receive<S>(subscriber: S) where Output == S.Input, S : Subscriber, S.Failure == Never
 }
 
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
@@ -1036,7 +1098,7 @@ final public class ObservableObjectPublisher : Publisher {
     /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
     ///
     /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-    final public func receive<S>(subscriber: S) where S : Subscriber, S.Failure == ObservableObjectPublisher.Failure, S.Input == ObservableObjectPublisher.Output
+    final public func receive<S>(subscriber: S) where S : Subscriber, S.Failure == Never, S.Input == ()
 
     /// Sends the changed value to the downstream subscriber.
     final public func send()
@@ -1148,7 +1210,7 @@ final public class PassthroughSubject<Output, Failure> : Subject where Failure :
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where Value == S.Input, S : Subscriber, S.Failure == Published<Value>.Publisher.Failure
+        public func receive<S>(subscriber: S) where Value == S.Input, S : Subscriber, S.Failure == Never
     }
 
     /// The property for which this instance exposes a publisher.
@@ -1168,22 +1230,38 @@ final public class PassthroughSubject<Output, Failure> : Subject where Failure :
 /// - ``Subscriber/receive(_:)``: Delivers one element from the publisher to the subscriber.
 /// - ``Subscriber/receive(completion:)``: Informs the subscriber that publishing has ended, either normally or with an error.
 ///
-/// Every ``Publisher`` must adhere to this contract for downstream subscribers to function correctly.
+/// Every `Publisher` must adhere to this contract for downstream subscribers to function correctly.
 ///
-/// Extensions on ``Publisher`` define a wide variety of _operators_ that you compose to create sophisticated event-processing chains.
+/// Extensions on `Publisher` define a wide variety of _operators_ that you compose to create sophisticated event-processing chains.
 /// Each operator returns a type that implements the ``Publisher`` protocol
 /// Most of these types exist as extensions on the ``Publishers`` enumeration.
 /// For example, the ``Publisher/map(_:)-99evh`` operator returns an instance of ``Publishers/Map``.
 ///
+/// > Tip: A Combine publisher fills a role similar to, but distinct from, the
+/// <doc://com.apple.documentation/documentation/Swift/AsyncSequence> in the
+/// Swift standard library. A `Publisher` and an
+/// `AsyncSequence` both produce elements over time. However, the pull model in Combine
+/// uses a ``Combine/Subscriber`` to request elements from a publisher, while Swift
+/// concurrency uses the `for`-`await`-`in` syntax to iterate over elements
+/// published by an `AsyncSequence`. Both APIs offer methods to modify the sequence
+/// by mapping or filtering elements, while only Combine provides time-based
+/// operations like
+/// ``Publisher/debounce(for:scheduler:options:)`` and
+/// ``Publisher/throttle(for:scheduler:latest:)``, and combining operations like
+/// ``Publisher/merge(with:)-7fk3a`` and ``Publisher/combineLatest(_:_:)-1n30g``.
+/// To bridge the two approaches, the property ``Publisher/values-1dm9r`` exposes
+/// a publisher's elements as an `AsyncSequence`, allowing you to iterate over
+/// them with `for`-`await`-`in` rather than attaching a ``Subscriber``.
+///
 /// # Creating Your Own Publishers
 ///
-/// Rather than implementing the ``Publisher`` protocol yourself, you can create your own publisher by using one of several types provided by the Combine framework:
+/// Rather than implementing the `Publisher` protocol yourself, you can create your own publisher by using one of several types provided by the Combine framework:
 ///
 /// - Use a concrete subclass of ``Subject``, such as ``PassthroughSubject``, to publish values on-demand by calling its ``Subject/send(_:)`` method.
 /// - Use a ``CurrentValueSubject`` to publish whenever you update the subject’s underlying value.
 /// - Add the `@Published` annotation to a property of one of your own types. In doing so, the property gains a publisher that emits an event whenever the property’s value changes. See the ``Published`` type for an example of this approach.
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
-public protocol Publisher {
+public protocol Publisher<Output, Failure> {
 
     /// The kind of values published by this publisher.
     associatedtype Output
@@ -1407,15 +1485,15 @@ extension Publisher {
     ///
     /// Use ``Publisher/tryFilter(_:)`` to filter elements evaluated in an error-throwing closure. If the `isIncluded` closure throws an error, the publisher fails with that error.
     ///
-    /// In the example below, ``Publisher/tryFilter(_:)`` checks to see if the divisor provided by the publisher is zero, and throws a `DivisionByZeroError` and then terminates the publisher with the thrown error:
+    /// In the example below, ``Publisher/tryFilter(_:)`` checks to see if the element provided by the publisher is zero, and throws a `ZeroError` before terminating the publisher with the thrown error. Otherwise, it republishes the element only if it's even:
     ///
-    ///     struct DivisionByZeroError: Error {}
+    ///     struct ZeroError: Error {}
     ///
     ///     let numbers: [Int] = [1, 2, 3, 4, 0, 5]
     ///     cancellable = numbers.publisher
     ///         .tryFilter{
     ///             if $0 == 0 {
-    ///                 throw DivisionByZeroError()
+    ///                 throw ZeroError()
     ///             } else {
     ///                 return $0 % 2 == 0
     ///             }
@@ -1807,18 +1885,6 @@ extension Publisher {
     /// - Returns: A publisher that receives and combines elements from this and another publisher.
     public func combineLatest<P>(_ other: P) -> Publishers.CombineLatest<Self, P> where P : Publisher, Self.Failure == P.Failure
 
-    /// Subscribes to an additional publisher and invokes a closure upon receiving output from either publisher.
-    ///
-    /// Use `combineLatest<P,T>(_:)` to combine the current and one additional publisher and transform them using a closure you specify to publish a new value to the downstream.
-    ///
-    /// > Tip: The combined publisher doesn't produce elements until each of its upstream publishers publishes at least one element.
-    ///
-    /// The combined publisher passes through any requests to *all* upstream publishers. However, it still obeys the demand-fulfilling rule of only sending the request amount downstream. If the demand isn’t `.unlimited`, it drops values from upstream publishers. It implements this by using a buffer size of 1 for each upstream, and holds the most-recent value in each buffer.
-    ///
-    /// In the example below, `combineLatest()` receives the most-recent values published by the two publishers, it multiplies them together, and republishes the result:
-    ///
-    ///     let pub1 = PassthroughSubject<Int, Never>()
-    ///     let pub2 = PassthroughSubject<Int, Never>()
     ///     cancellable = pub1
     ///         .combineLatest(pub2) { (first, second) in
     ///             return first * second
@@ -2484,6 +2550,21 @@ extension Publisher {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publisher where Self.Failure == Never {
 
+    /// The elements produced by the publisher, as an asynchronous sequence.
+    ///
+    /// This property provides an ``AsyncPublisher``, which allows you to use the Swift `async`-`await` syntax to receive the publisher's elements. Because ``AsyncPublisher`` conforms to <doc://com.apple.documentation/documentation/Swift/AsyncSequence>, you iterate over its elements with a `for`-`await`-`in` loop, rather than attaching a subscriber.
+    ///
+    /// The following example shows how to use the `values` property to receive elements asynchronously. The example adapts a code snippet from the ``Publisher/filter(_:)`` operator's documentation, which filters a sequence to only emit even integers. This example replaces the ``Subscribers/Sink`` subscriber with a `for`-`await`-`in` loop that iterates over the ``AsyncPublisher`` provided by the `values` property.
+    ///
+    ///     let numbers: [Int] = [1, 2, 3, 4, 5]
+    ///     let filtered = numbers.publisher
+    ///         .filter { $0 % 2 == 0 }
+    ///
+    ///     for await number in filtered.values
+    ///     {
+    ///         print("\(number)", terminator: " ")
+    ///     }
+    ///
     @available(macOS 12.0, iOS 15.0, tvOS 15.0, watchOS 8.0, *)
     public var values: AsyncPublisher<Self> { get }
 }
@@ -2491,6 +2572,31 @@ extension Publisher where Self.Failure == Never {
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension Publisher {
 
+    /// The elements produced by the publisher, as a throwing asynchronous sequence.
+    ///
+    /// This property provides an ``AsyncThrowingPublisher``, which allows you to use the Swift `async`-`await` syntax to receive the publisher's elements. Because ``AsyncPublisher`` conforms to <doc://com.apple.documentation/documentation/Swift/AsyncSequence>, you iterate over its elements with a `for`-`await`-`in` loop, rather than attaching a subscriber. If the publisher terminates with an error, the awaiting caller receives the error as a `throw`.
+    ///
+    /// The following example shows how to use the `values` property to receive elements asynchronously. The example adapts a code snippet from the ``Publisher/tryFilter(_:)`` operator's documentation, which filters a sequence to only emit even integers, and terminate with an error on a `0`. This example replaces the ``Subscribers/Sink`` subscriber with a `for`-`await`-`in` loop that iterates over the ``AsyncPublisher`` provided by the `values` property. With this approach, the error handling previously provided in the sink subscriber's ``Subscribers/Sink/receiveCompletion`` closure goes instead in a `catch` block.
+    ///
+    ///     let numbers: [Int] = [1, 2, 3, 4, 0, 5]
+    ///     let filterPublisher = numbers.publisher
+    ///         .tryFilter{
+    ///             if $0 == 0 {
+    ///                 throw ZeroError()
+    ///             } else {
+    ///                 return $0 % 2 == 0
+    ///             }
+    ///         }
+    ///
+    ///     do {
+    ///         for try await number in filterPublisher.values {
+    ///             print ("\(number)", terminator: " ")
+    ///         }
+    ///     } catch {
+    ///         print ("\(error)")
+    ///     }
+    ///
+    ///
     @available(macOS 12.0, iOS 15.0, tvOS 15.0, watchOS 8.0, *)
     public var values: AsyncThrowingPublisher<Self> { get }
 }
@@ -3555,7 +3661,7 @@ extension Publisher {
 
     /// Raises a fatal error when its upstream publisher fails, and otherwise republishes all received input.
     ///
-    /// Use `assertNoFailure()` for internal sanity checks that are active during testing. However, it is important to note that, like its Swift counterpart `fatalError(_:)`, the `assertNoFailure()` operator asserts a fatal exception when triggered in both development/testing _and_ shipping versions of code.
+    /// Use `assertNoFailure()` for internal integrity checks that are active during testing. However, it is important to note that, like its Swift counterpart `fatalError(_:)`, the `assertNoFailure()` operator asserts a fatal exception when triggered during development and testing, _and_ in shipping versions of code.
     ///
     /// In the example below, a `CurrentValueSubject` publishes the initial and second values successfully. The third value, containing a `genericSubjectError`, causes the `assertNoFailure()` operator to assert a fatal exception stopping the process:
     ///
@@ -4721,7 +4827,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Publishers.TryDropWhile<Upstream>.Failure
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Error
     }
 }
 
@@ -4795,7 +4901,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Publishers.TryFilter<Upstream>.Failure
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Error
     }
 }
 
@@ -4887,7 +4993,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, S.Input == Publishers.AllSatisfy<Upstream>.Output
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, S.Input == Bool
     }
 
     /// A publisher that publishes a single Boolean value that indicates whether all received elements pass a given error-throwing predicate.
@@ -4924,7 +5030,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, S.Failure == Publishers.TryAllSatisfy<Upstream>.Failure, S.Input == Publishers.TryAllSatisfy<Upstream>.Output
+        public func receive<S>(subscriber: S) where S : Subscriber, S.Failure == Error, S.Input == Bool
     }
 }
 
@@ -4994,7 +5100,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Publishers.TryRemoveDuplicates<Upstream>.Failure
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Error
     }
 }
 
@@ -5024,7 +5130,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where Output == S.Input, S : Subscriber, S.Failure == Publishers.Decode<Upstream, Output, Coder>.Failure
+        public func receive<S>(subscriber: S) where Output == S.Input, S : Subscriber, S.Failure == Error
     }
 
     /// A publisher that encodes elements received from an upstream publisher, using a given encoder.
@@ -5055,7 +5161,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Coder.Output == S.Input, S.Failure == Publishers.Encode<Upstream, Coder>.Failure
+        public func receive<S>(subscriber: S) where S : Subscriber, Coder.Output == S.Input, S.Failure == Error
     }
 }
 
@@ -5094,7 +5200,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, S.Input == Publishers.Contains<Upstream>.Output
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, S.Input == Bool
     }
 }
 
@@ -5131,7 +5237,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, B.Failure == S.Failure, S.Input == Publishers.CombineLatest<A, B>.Output
+        public func receive<S>(subscriber: S) where S : Subscriber, B.Failure == S.Failure, S.Input == (A.Output, B.Output)
     }
 
     /// A publisher that receives and combines the latest elements from three publishers.
@@ -5162,7 +5268,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, C.Failure == S.Failure, S.Input == Publishers.CombineLatest3<A, B, C>.Output
+        public func receive<S>(subscriber: S) where S : Subscriber, C.Failure == S.Failure, S.Input == (A.Output, B.Output, C.Output)
     }
 
     /// A publisher that receives and combines the latest elements from four publishers.
@@ -5195,7 +5301,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, D.Failure == S.Failure, S.Input == Publishers.CombineLatest4<A, B, C, D>.Output
+        public func receive<S>(subscriber: S) where S : Subscriber, D.Failure == S.Failure, S.Input == (A.Output, B.Output, C.Output, D.Output)
     }
 }
 
@@ -5355,7 +5461,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Publishers.TryPrefixWhile<Upstream>.Failure
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Error
     }
 }
 
@@ -5428,7 +5534,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, S.Input == Publishers.ContainsWhere<Upstream>.Output
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, S.Input == Bool
     }
 
     /// A publisher that emits a Boolean value upon receiving an element that satisfies the throwing predicate closure.
@@ -5463,7 +5569,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, S.Failure == Publishers.TryContainsWhere<Upstream>.Failure, S.Input == Publishers.TryContainsWhere<Upstream>.Output
+        public func receive<S>(subscriber: S) where S : Subscriber, S.Failure == Error, S.Input == Bool
     }
 }
 
@@ -5557,7 +5663,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, S.Input == Publishers.CollectByTime<Upstream, Context>.Output
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, S.Input == [Upstream.Output]
     }
 
     /// A publisher that buffers items.
@@ -5587,7 +5693,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, S.Input == Publishers.Collect<Upstream>.Output
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, S.Input == [Upstream.Output]
     }
 
     /// A publisher that buffers a maximum number of items.
@@ -5622,7 +5728,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, S.Input == Publishers.CollectByCount<Upstream>.Output
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, S.Input == [Upstream.Output]
     }
 }
 
@@ -5873,7 +5979,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where Output == S.Input, S : Subscriber, S.Failure == Publishers.TryReduce<Upstream, Output>.Failure
+        public func receive<S>(subscriber: S) where Output == S.Input, S : Subscriber, S.Failure == Error
     }
 }
 
@@ -5935,7 +6041,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where Output == S.Input, S : Subscriber, S.Failure == Publishers.TryCompactMap<Upstream, Output>.Failure
+        public func receive<S>(subscriber: S) where Output == S.Input, S : Subscriber, S.Failure == Error
     }
 }
 
@@ -6418,7 +6524,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where Output == S.Input, S : Subscriber, S.Failure == Publishers.TryScan<Upstream, Output>.Failure
+        public func receive<S>(subscriber: S) where Output == S.Input, S : Subscriber, S.Failure == Error
     }
 }
 
@@ -6452,7 +6558,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, S.Input == Publishers.Count<Upstream>.Output
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, S.Input == Int
     }
 }
 
@@ -6526,7 +6632,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Publishers.TryLastWhere<Upstream>.Failure
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Error
     }
 }
 
@@ -6560,7 +6666,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, S.Input == Publishers.IgnoreOutput<Upstream>.Output
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, S.Input == Never
     }
 }
 
@@ -6848,7 +6954,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Publishers.TryComparison<Upstream>.Failure
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Error
     }
 }
 
@@ -6922,7 +7028,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Publishers.ReplaceError<Upstream>.Failure
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Never
     }
 }
 
@@ -6931,7 +7037,7 @@ extension Publishers {
 
     /// A publisher that raises a fatal error upon receiving any failure, and otherwise republishes all received input.
     ///
-    /// Use this function for internal sanity checks that are active during testing but do not impact performance of shipping code.
+    /// Use this function for internal integrity checks that are active during testing but don't affect performance of shipping code.
     public struct AssertNoFailure<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
@@ -6971,7 +7077,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Publishers.AssertNoFailure<Upstream>.Failure
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Never
     }
 }
 
@@ -7250,7 +7356,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where Output == S.Input, S : Subscriber, S.Failure == Publishers.TryMap<Upstream, Output>.Failure
+        public func receive<S>(subscriber: S) where Output == S.Input, S : Subscriber, S.Failure == Error
     }
 }
 
@@ -7483,7 +7589,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, B.Failure == S.Failure, S.Input == Publishers.Zip<A, B>.Output
+        public func receive<S>(subscriber: S) where S : Subscriber, B.Failure == S.Failure, S.Input == (A.Output, B.Output)
     }
 
     /// A publisher created by applying the zip function to three upstream publishers.
@@ -7526,7 +7632,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, C.Failure == S.Failure, S.Input == Publishers.Zip3<A, B, C>.Output
+        public func receive<S>(subscriber: S) where S : Subscriber, C.Failure == S.Failure, S.Input == (A.Output, B.Output, C.Output)
     }
 
     /// A publisher created by applying the zip function to four upstream publishers.
@@ -7573,7 +7679,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, D.Failure == S.Failure, S.Input == Publishers.Zip4<A, B, C, D>.Output
+        public func receive<S>(subscriber: S) where S : Subscriber, D.Failure == S.Failure, S.Input == (A.Output, B.Output, C.Output, D.Output)
     }
 }
 
@@ -7691,7 +7797,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, NewPublisher.Output == S.Input, S.Failure == Publishers.TryCatch<Upstream, NewPublisher>.Failure
+        public func receive<S>(subscriber: S) where S : Subscriber, NewPublisher.Output == S.Input, S.Failure == Error
     }
 }
 
@@ -7920,7 +8026,7 @@ extension Publishers {
         /// The provided implementation of ``Publisher/subscribe(_:)-4u8kn``calls this method.
         ///
         /// - Parameter subscriber: The subscriber to attach to this ``Publisher``, after which it can receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Publishers.TryFirstWhere<Upstream>.Failure
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Error
     }
 }
 
@@ -8589,7 +8695,7 @@ extension Record.Recording : Codable where Output : Decodable, Output : Encodabl
 /// You can use a scheduler to execute code as soon as possible, or after a future date.
 /// Individual scheduler implementations use whatever time-keeping system makes sense for them. Schedulers express this as their `SchedulerTimeType`. Since this type conforms to ``SchedulerTimeIntervalConvertible``, you can always express these times with the convenience functions like `.milliseconds(500)`. Schedulers can accept options to control how they execute the actions passed to them. These options may control factors like which threads or dispatch queues execute the actions.
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
-public protocol Scheduler {
+public protocol Scheduler<SchedulerTimeType> {
 
     /// Describes an instant in time for this scheduler.
     associatedtype SchedulerTimeType : Strideable where Self.SchedulerTimeType.Stride : SchedulerTimeIntervalConvertible
@@ -8666,7 +8772,7 @@ public protocol SchedulerTimeIntervalConvertible {
 ///
 /// A subject is a publisher that you can use to ”inject” values into a stream, by calling its ``Subject/send(_:)`` method. This can be useful for adapting existing imperative code to the Combine model.
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
-public protocol Subject : AnyObject, Publisher {
+public protocol Subject<Output, Failure> : AnyObject, Publisher {
 
     /// Sends a value to the subscriber.
     ///
@@ -8687,7 +8793,7 @@ public protocol Subject : AnyObject, Publisher {
 }
 
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
-extension Subject where Self.Output == Void {
+extension Subject where Self.Output == () {
 
     /// Sends a void value to the subscriber.
     ///
@@ -8706,7 +8812,7 @@ extension Subject where Self.Output == Void {
 /// - ``Publisher/sink(receiveCompletion:receiveValue:)`` executes arbitrary closures when it receives a completion signal and each time it receives a new element.
 /// - ``Publisher/assign(to:on:)`` writes each newly-received value to a property identified by a key path on a given instance.
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
-public protocol Subscriber : CustomCombineIdentifierConvertible {
+public protocol Subscriber<Input, Failure> : CustomCombineIdentifierConvertible {
 
     /// The kind of values this subscriber receives.
     associatedtype Input
@@ -8735,7 +8841,7 @@ public protocol Subscriber : CustomCombineIdentifierConvertible {
 }
 
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
-extension Subscriber where Self.Input == Void {
+extension Subscriber where Self.Input == () {
 
     /// Tells the subscriber that a publisher of void elements is ready to receive further requests.
     ///
