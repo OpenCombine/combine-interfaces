@@ -1,6 +1,7 @@
 import Darwin
 import _Concurrency
 import _StringProcessing
+import _SwiftConcurrencyShims
 
 /// A type-erasing cancellable object that executes a provided closure when canceled.
 ///
@@ -34,8 +35,10 @@ final public class AnyCancellable : Cancellable, Hashable {
     /// in your type's `==` operator implementation. Call `hasher.combine(_:)`
     /// with each of these components.
     ///
-    /// - Important: Never call `finalize()` on `hasher`. Doing so may become a
-    ///   compile-time error in the future.
+    /// - Important: In your implementation of `hash(into:)`,
+    ///   don't call `finalize()` on the `hasher` instance provided,
+    ///   or replace it with a different instance.
+    ///   Doing so may become a compile-time error in the future.
     ///
     /// - Parameter hasher: The hasher to use when combining the components
     ///   of this instance.
@@ -55,6 +58,7 @@ final public class AnyCancellable : Cancellable, Hashable {
     ///
     /// - Important: `hashValue` is deprecated as a `Hashable` requirement. To
     ///   conform to `Hashable`, implement the `hash(into:)` requirement instead.
+    ///   The compiler provides an implementation for `hashValue` for you.
     final public var hashValue: Int { get }
 }
 
@@ -338,8 +342,10 @@ public struct CombineIdentifier : Hashable, CustomStringConvertible {
     /// in your type's `==` operator implementation. Call `hasher.combine(_:)`
     /// with each of these components.
     ///
-    /// - Important: Never call `finalize()` on `hasher`. Doing so may become a
-    ///   compile-time error in the future.
+    /// - Important: In your implementation of `hash(into:)`,
+    ///   don't call `finalize()` on the `hasher` instance provided,
+    ///   or replace it with a different instance.
+    ///   Doing so may become a compile-time error in the future.
     ///
     /// - Parameter hasher: The hasher to use when combining the components
     ///   of this instance.
@@ -362,6 +368,7 @@ public struct CombineIdentifier : Hashable, CustomStringConvertible {
     ///
     /// - Important: `hashValue` is deprecated as a `Hashable` requirement. To
     ///   conform to `Hashable`, implement the `hash(into:)` requirement instead.
+    ///   The compiler provides an implementation for `hashValue` for you.
     public var hashValue: Int { get }
 }
 
@@ -891,6 +898,7 @@ public struct ImmediateScheduler : Scheduler {
     /// Performs the action at some time after the specified date, at the specified frequency, optionally taking into account tolerance if possible.
     ///
     /// The immediate scheduler ignores `date` and performs the action immediately.
+    @discardableResult
     public func schedule(after date: ImmediateScheduler.SchedulerTimeType, interval: ImmediateScheduler.SchedulerTimeType.Stride, tolerance: ImmediateScheduler.SchedulerTimeType.Stride, options: ImmediateScheduler.SchedulerOptions?, _ action: @escaping () -> Void) -> Cancellable
 }
 
@@ -1885,6 +1893,19 @@ extension Publisher {
     /// - Returns: A publisher that receives and combines elements from this and another publisher.
     public func combineLatest<P>(_ other: P) -> Publishers.CombineLatest<Self, P> where P : Publisher, Self.Failure == P.Failure
 
+    /// Subscribes to an additional publisher and invokes a closure upon receiving output from either publisher.
+    ///
+    /// Use `combineLatest<P,T>(_:)` to combine the current and one additional publisher and transform them using a closure you specify to publish a new value to the downstream.
+    ///
+    /// > Tip: The combined publisher doesn't produce elements until each of its upstream publishers publishes at least one element.
+    ///
+    /// The combined publisher passes through any requests to *all* upstream publishers. However, it still obeys the demand-fulfilling rule of only sending the request amount downstream. If the demand isn’t `.unlimited`, it drops values from upstream publishers. It implements this by using a buffer size of 1 for each upstream, and holds the most-recent value in each buffer.
+    ///
+    /// In the example below, `combineLatest()` receives the most-recent values published by the two publishers, it multiplies them together, and republishes the result:
+    ///
+    ///     let pub1 = PassthroughSubject<Int, Never>()
+    ///     let pub2 = PassthroughSubject<Int, Never>()
+    ///
     ///     cancellable = pub1
     ///         .combineLatest(pub2) { (first, second) in
     ///             return first * second
@@ -2146,7 +2167,7 @@ extension Publisher {
     ///   - prefix: A string —- which defaults to empty -— with which to prefix all log messages.
     ///   - stream: A stream for text output that receives messages, and which directs output to the console by default.  A custom stream can be used to log messages to other destinations.
     /// - Returns: A publisher that prints log messages for all publishing events.
-    public func print(_ prefix: String = "", to stream: TextOutputStream? = nil) -> Publishers.Print<Self>
+    public func print(_ prefix: String = "", to stream: (TextOutputStream)? = nil) -> Publishers.Print<Self>
 }
 
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
@@ -5371,14 +5392,14 @@ extension Publishers {
         /// The publisher from which this publisher receives elements.
         public let upstream: Upstream
 
-        public let stream: TextOutputStream?
+        public let stream: (TextOutputStream)?
 
         /// Creates a publisher that prints log messages for all publishing events.
         ///
         /// - Parameters:
         ///   - upstream: The publisher from which this publisher receives elements.
         ///   - prefix: A string with which to prefix all log messages.
-        public init(upstream: Upstream, prefix: String, to stream: TextOutputStream? = nil)
+        public init(upstream: Upstream, prefix: String, to stream: (TextOutputStream)? = nil)
 
         /// Attaches the specified subscriber to this publisher.
         ///
@@ -7445,8 +7466,10 @@ extension Publishers {
         /// in your type's `==` operator implementation. Call `hasher.combine(_:)`
         /// with each of these components.
         ///
-        /// - Important: Never call `finalize()` on `hasher`. Doing so may become a
-        ///   compile-time error in the future.
+        /// - Important: In your implementation of `hash(into:)`,
+        ///   don't call `finalize()` on the `hasher` instance provided,
+        ///   or replace it with a different instance.
+        ///   Doing so may become a compile-time error in the future.
         ///
         /// - Parameter hasher: The hasher to use when combining the components
         ///   of this instance.
@@ -7459,6 +7482,7 @@ extension Publishers {
         ///
         /// - Important: `hashValue` is deprecated as a `Hashable` requirement. To
         ///   conform to `Hashable`, implement the `hash(into:)` requirement instead.
+        ///   The compiler provides an implementation for `hashValue` for you.
         public var hashValue: Int { get }
     }
 
@@ -9160,8 +9184,10 @@ extension Subscribers {
         /// in your type's `==` operator implementation. Call `hasher.combine(_:)`
         /// with each of these components.
         ///
-        /// - Important: Never call `finalize()` on `hasher`. Doing so may become a
-        ///   compile-time error in the future.
+        /// - Important: In your implementation of `hash(into:)`,
+        ///   don't call `finalize()` on the `hasher` instance provided,
+        ///   or replace it with a different instance.
+        ///   Doing so may become a compile-time error in the future.
         ///
         /// - Parameter hasher: The hasher to use when combining the components
         ///   of this instance.
@@ -9174,6 +9200,7 @@ extension Subscribers {
         ///
         /// - Important: `hashValue` is deprecated as a `Hashable` requirement. To
         ///   conform to `Hashable`, implement the `hash(into:)` requirement instead.
+        ///   The compiler provides an implementation for `hashValue` for you.
         public var hashValue: Int { get }
     }
 }
@@ -9262,8 +9289,10 @@ extension Subscribers.Completion : Hashable where Failure : Hashable {
     /// in your type's `==` operator implementation. Call `hasher.combine(_:)`
     /// with each of these components.
     ///
-    /// - Important: Never call `finalize()` on `hasher`. Doing so may become a
-    ///   compile-time error in the future.
+    /// - Important: In your implementation of `hash(into:)`,
+    ///   don't call `finalize()` on the `hasher` instance provided,
+    ///   or replace it with a different instance.
+    ///   Doing so may become a compile-time error in the future.
     ///
     /// - Parameter hasher: The hasher to use when combining the components
     ///   of this instance.
@@ -9276,6 +9305,7 @@ extension Subscribers.Completion : Hashable where Failure : Hashable {
     ///
     /// - Important: `hashValue` is deprecated as a `Hashable` requirement. To
     ///   conform to `Hashable`, implement the `hash(into:)` requirement instead.
+    ///   The compiler provides an implementation for `hashValue` for you.
     public var hashValue: Int { get }
 }
 
